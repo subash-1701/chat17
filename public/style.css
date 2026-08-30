@@ -618,6 +618,27 @@ input {
     font-size: 20px;
 }
 
+.desktop-logout-button {
+    height: 35px;
+    padding: 0 11px;
+
+    border: 1px solid var(--border);
+    border-radius: 10px;
+
+    background: transparent;
+    color: var(--danger);
+
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+
+    white-space: nowrap;
+}
+
+.desktop-logout-button:hover {
+    background: #fdeeec;
+}
+
 
 /* ==================================
    MESSAGE PANEL
@@ -1416,17 +1437,24 @@ input {
     .message-panel {
         position: fixed;
 
-        inset: 0;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: var(--mobile-keyboard-offset, 0px);
 
         z-index: 200;
 
         display: block;
 
         width: 100%;
-        height: 100dvh;
-        min-height: 100dvh;
+        height: auto;
+        min-height: 0;
 
         background: var(--white);
+
+        /* Resize with Android's visual viewport so the composer rises
+           above the software keyboard instead of being covered by it. */
+        transition: bottom .08s linear;
     }
 
     /* The hidden class is the single source of truth on mobile.
@@ -1438,6 +1466,7 @@ input {
     .conversation {
         height: 100%;
         min-height: 0;
+        max-height: 100%;
     }
 
     .mobile-back {
@@ -1449,14 +1478,35 @@ input {
     }
 
     .message-form {
-        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        min-height: 64px;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
         flex-shrink: 0;
+        position: relative;
+        z-index: 2;
+    }
+
+    .message-form input {
+        height: 46px;
+        font-size: 13px;
+        font-family: inherit;
+    }
+
+    .send-button {
+        width: 46px;
+        height: 46px;
+        border-radius: var(--radius-md);
     }
 
     .messages {
         padding: 15px;
     }
 
+
+    /* Hide the desktop user/logout row on mobile.
+       Profile and logout are available from the bottom Profile tab. */
+    .sidebar-user {
+        display: none;
+    }
 
     /* Bottom nav */
 

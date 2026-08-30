@@ -1145,14 +1145,23 @@ function openConversation(
         );
 
 
-    if (input) {
+    if (input && window.innerWidth <= 767) {
 
-        setTimeout(
-            () => input.focus(),
-            50
-        );
+        // WhatsApp-style mobile chat: open the keyboard immediately and
+        // keep the composer above the keyboard while the conversation stays open.
+        setTimeout(() => {
+            input.focus({ preventScroll: true });
+            scrollMessagesToBottom();
+            syncMobileKeyboardHeight();
+        }, 120);
+
+    } else if (input) {
+
+        setTimeout(() => input.focus(), 50);
 
     }
+
+    syncMobileKeyboardHeight();
 
 }
 
@@ -2076,6 +2085,62 @@ function formatTime(value) {
 
 
 /* ==========================================
+   MOBILE KEYBOARD / WHATSAPP-STYLE COMPOSER
+========================================== */
+
+function syncMobileKeyboardHeight() {
+    if (window.innerWidth > 767) return;
+
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const keyboardOffset = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop
+    );
+
+    document.documentElement.style.setProperty(
+        "--mobile-keyboard-offset",
+        `${keyboardOffset}px`
+    );
+
+    if (currentRoom) {
+        requestAnimationFrame(() => {
+            scrollMessagesToBottom();
+        });
+    }
+}
+
+function scrollMessagesToBottom() {
+    if (!messages) return;
+    messages.scrollTop = messages.scrollHeight;
+}
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncMobileKeyboardHeight);
+    window.visualViewport.addEventListener("scroll", syncMobileKeyboardHeight);
+}
+
+window.addEventListener("resize", () => {
+    if (window.innerWidth > 767) {
+        document.documentElement.style.removeProperty("--mobile-keyboard-offset");
+    } else {
+        syncMobileKeyboardHeight();
+    }
+});
+
+if (messagePanel) {
+    messagePanel.addEventListener("click", event => {
+        if (window.innerWidth <= 767 && currentRoom &&
+            !event.target.closest(".conversation-header") &&
+            !event.target.closest(".message-form")) {
+            const input = document.getElementById("messageInput");
+            if (input) input.focus({ preventScroll: true });
+        }
+    });
+}
+
+/* ==========================================
    MOBILE BACK
 ========================================== */
 
@@ -2097,6 +2162,7 @@ if (mobileBackBtn) {
 
             // Keep the panel hidden until another chat is selected.
             messagePanel.classList.add("hidden");
+            document.documentElement.style.removeProperty("--mobile-keyboard-offset");
 
             currentRoom = "";
 
@@ -2550,32 +2616,78 @@ function showMobilePage(page) {
    LOGOUT
 ========================================== */
 
-const logoutBtn =
-    document.getElementById(
-        "logoutBtn"
-    );
+const logoutButtons = [
+    document.getElementById("logoutBtn"),
+    document.getElementById("desktopLogoutBtn")
+].filter(Boolean);
 
 
-if (logoutBtn) {
+function performLogout() {
 
-    logoutBtn.addEventListener(
-        "click",
-        () => {
+    const roomsToClear =
+        Array.isArray(rooms)
+            ? rooms.map(room => room.code).filter(Boolean)
+            : [];
 
-            localStorage.removeItem(
-                "chat_username"
-            );
+    const finishLogout = () => {
 
-            localStorage.removeItem(
-                "chat_current_room"
-            );
+        // Remove ALL Chat17 browser data for this account.
+        localStorage.removeItem("chat_username");
+        localStorage.removeItem("chat_current_room");
+        localStorage.removeItem("chat_rooms");
+        localStorage.removeItem("chat_list");
 
-            location.reload();
+        username = "";
+        currentRoom = "";
+        currentChat = null;
+        rooms = [];
+        chats = [];
 
-        }
-    );
+        location.reload();
+
+    };
+
+    // Ask the server to remove this user's messages from their rooms
+    // before the browser data is cleared.
+    if (socket && socket.connected) {
+
+        let completed = false;
+
+        const done = () => {
+            if (completed) return;
+            completed = true;
+            finishLogout();
+        };
+
+        socket.emit(
+            "logout",
+            {
+                username,
+                roomCodes: roomsToClear
+            },
+            done
+        );
+
+        // Never leave logout stuck if the connection is unavailable.
+        setTimeout(done, 1000);
+
+    } else {
+
+        finishLogout();
+
+    }
 
 }
+
+
+logoutButtons.forEach(button => {
+
+    button.addEventListener(
+        "click",
+        performLogout
+    );
+
+});
 
 
 /* ==========================================

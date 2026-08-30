@@ -479,6 +479,78 @@ io.on(
 
 
         /* ==================================
+           LOGOUT / CLEAR USER DATA
+        ================================== */
+
+        socket.on(
+            "logout",
+            (data, callback) => {
+
+                data = data || {};
+
+                const logoutUsername =
+                    cleanName(data.username);
+
+                const roomCodes =
+                    Array.isArray(data.roomCodes)
+                        ? data.roomCodes
+                            .map(cleanRoomCode)
+                            .filter(Boolean)
+                        : [];
+
+                // Also include the room the socket is currently in.
+                if (
+                    socket.roomCode &&
+                    !roomCodes.includes(socket.roomCode)
+                ) {
+                    roomCodes.push(socket.roomCode);
+                }
+
+                roomCodes.forEach(roomCode => {
+
+                    const room = rooms.get(roomCode);
+
+                    if (!room) {
+                        return;
+                    }
+
+                    // Delete every message authored by this user.
+                    if (logoutUsername) {
+
+                        room.messages =
+                            room.messages.filter(
+                                message =>
+                                    message.senderUsername !== logoutUsername &&
+                                    message.username !== logoutUsername
+                            );
+
+                    }
+
+                    room.users.delete(socket.id);
+
+                    emitUsers(roomCode);
+
+                    // If nobody is left, remove the room and all remaining data.
+                    if (room.users.size === 0) {
+                        rooms.delete(roomCode);
+                    }
+
+                });
+
+                socket.roomCode = "";
+                socket.username = "";
+
+                if (typeof callback === "function") {
+                    callback({ success: true });
+                }
+
+                socket.disconnect(true);
+
+            }
+        );
+
+
+        /* ==================================
            SEND MESSAGE
         ================================== */
 
