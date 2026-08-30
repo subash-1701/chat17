@@ -2624,6 +2624,12 @@ const logoutButtons = [
 
 function performLogout() {
 
+    const confirmed = window.confirm("Are you sure you want to log out?");
+
+    if (!confirmed) {
+        return;
+    }
+
     const roomsToClear =
         Array.isArray(rooms)
             ? rooms.map(room => room.code).filter(Boolean)
