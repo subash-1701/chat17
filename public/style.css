@@ -1342,6 +1342,13 @@ input {
     }
 
 
+    /* Hide desktop user profile from the mobile chat screen.
+       Mobile users use the fixed 3-button navigation instead. */
+    .sidebar-user {
+        display: none;
+    }
+
+
     /* Bottom nav */
 
     .bottom-nav {
@@ -1661,4 +1668,28 @@ input {
         height: 45px;
     }
 
+}
+
+/* DEVELOPED BY */
+.developed-by {
+    margin-top: 100px;
+
+    padding-bottom: 10px;
+
+    text-align: center;
+
+    color: var(--muted);
+
+    font-size: 11px;
+}
+
+.developed-by a {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.developed-by strong {
+    color: var(--primary);
+
+    font-weight: bold;
 }
