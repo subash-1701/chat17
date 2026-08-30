@@ -2613,7 +2613,7 @@ function showMobilePage(page) {
 
 
 /* ==========================================
-   LOGOUT
+   DELETE ACCOUNT / LOGOUT
 ========================================== */
 
 const logoutButtons = [
@@ -2621,13 +2621,103 @@ const logoutButtons = [
     document.getElementById("desktopLogoutBtn")
 ].filter(Boolean);
 
+const deleteAccountModal =
+    document.getElementById("deleteAccountModal");
 
-function performLogout() {
+const deleteAccountInput =
+    document.getElementById("deleteAccountInput");
 
-    const confirmed = window.confirm("Are you sure you want to log out?");
+const confirmDeleteAccount =
+    document.getElementById("confirmDeleteAccount");
 
-    if (!confirmed) {
+const closeDeleteAccountModal =
+    document.getElementById("closeDeleteAccountModal");
+
+const cancelDeleteAccount =
+    document.getElementById("cancelDeleteAccount");
+
+const deleteAccountError =
+    document.getElementById("deleteAccountError");
+
+const DELETE_ACCOUNT_PHRASE =
+    "yes delete account";
+
+function closeDeleteAccountDialog() {
+
+    if (!deleteAccountModal) {
         return;
+    }
+
+    deleteAccountModal.classList.add("hidden");
+
+    if (deleteAccountInput) {
+        deleteAccountInput.value = "";
+    }
+
+    if (confirmDeleteAccount) {
+        confirmDeleteAccount.disabled = true;
+    }
+
+    if (deleteAccountError) {
+        deleteAccountError.textContent = "";
+    }
+
+}
+
+function openDeleteAccountDialog() {
+
+    if (!deleteAccountModal) {
+        return;
+    }
+
+    deleteAccountModal.classList.remove("hidden");
+
+    requestAnimationFrame(() => {
+
+        if (deleteAccountInput) {
+            deleteAccountInput.focus();
+        }
+
+    });
+
+}
+
+function validateDeletePhrase() {
+
+    const value =
+        deleteAccountInput
+            ? deleteAccountInput.value.trim().toLowerCase()
+            : "";
+
+    const valid =
+        value === DELETE_ACCOUNT_PHRASE;
+
+    if (confirmDeleteAccount) {
+        confirmDeleteAccount.disabled = !valid;
+    }
+
+    if (deleteAccountError) {
+
+        deleteAccountError.textContent =
+            value && !valid
+                ? "Type exactly: yes delete account"
+                : "";
+
+    }
+
+    return valid;
+
+}
+
+function performDeleteAccount() {
+
+    if (!validateDeletePhrase()) {
+        return;
+    }
+
+    if (confirmDeleteAccount) {
+        confirmDeleteAccount.disabled = true;
+        confirmDeleteAccount.textContent = "Deleting…";
     }
 
     const roomsToClear =
@@ -2635,7 +2725,7 @@ function performLogout() {
             ? rooms.map(room => room.code).filter(Boolean)
             : [];
 
-    const finishLogout = () => {
+    const finishDeleteAccount = () => {
 
         // Remove ALL Chat17 browser data for this account.
         localStorage.removeItem("chat_username");
@@ -2660,9 +2750,14 @@ function performLogout() {
         let completed = false;
 
         const done = () => {
-            if (completed) return;
+
+            if (completed) {
+                return;
+            }
+
             completed = true;
-            finishLogout();
+            finishDeleteAccount();
+
         };
 
         socket.emit(
@@ -2674,27 +2769,93 @@ function performLogout() {
             done
         );
 
-        // Never leave logout stuck if the connection is unavailable.
-        setTimeout(done, 1000);
+        // Never leave account deletion stuck if the connection is unavailable.
+        setTimeout(done, 1500);
 
     } else {
 
-        finishLogout();
+        finishDeleteAccount();
 
     }
 
 }
 
-
 logoutButtons.forEach(button => {
 
     button.addEventListener(
         "click",
-        performLogout
+        openDeleteAccountDialog
     );
 
 });
 
+if (deleteAccountInput) {
+
+    deleteAccountInput.addEventListener(
+        "input",
+        validateDeletePhrase
+    );
+
+    deleteAccountInput.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key === "Enter" &&
+                validateDeletePhrase()
+            ) {
+
+                event.preventDefault();
+                performDeleteAccount();
+
+            }
+
+        }
+    );
+
+}
+
+if (confirmDeleteAccount) {
+
+    confirmDeleteAccount.addEventListener(
+        "click",
+        performDeleteAccount
+    );
+
+}
+
+if (closeDeleteAccountModal) {
+
+    closeDeleteAccountModal.addEventListener(
+        "click",
+        closeDeleteAccountDialog
+    );
+
+}
+
+if (cancelDeleteAccount) {
+
+    cancelDeleteAccount.addEventListener(
+        "click",
+        closeDeleteAccountDialog
+    );
+
+}
+
+if (deleteAccountModal) {
+
+    deleteAccountModal.addEventListener(
+        "click",
+        event => {
+
+            if (event.target === deleteAccountModal) {
+                closeDeleteAccountDialog();
+            }
+
+        }
+    );
+
+}
 
 /* ==========================================
    RESIZE

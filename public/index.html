@@ -763,6 +763,91 @@
 </div>
 
 
+
+<!-- =========================
+     DELETE ACCOUNT CONFIRMATION
+========================= -->
+
+<div
+    id="deleteAccountModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="deleteAccountTitle"
+>
+    <div class="delete-account-card">
+
+        <button
+            id="closeDeleteAccountModal"
+            class="delete-modal-close"
+            type="button"
+            aria-label="Close"
+        >
+            ×
+        </button>
+
+        <div class="delete-warning-icon">⚠️</div>
+
+        <h2 id="deleteAccountTitle">
+            Delete your account?
+        </h2>
+
+        <p class="delete-account-warning">
+            This will log you out and permanently clear your
+            Chat17 account data from this browser. Your messages
+            will also be removed from the rooms you are part of.
+            <strong>This action cannot be undone.</strong>
+        </p>
+
+        <label
+            for="deleteAccountInput"
+            class="delete-confirm-label"
+        >
+            To confirm, type
+            <code>yes delete account</code>
+            below:
+        </label>
+
+        <input
+            id="deleteAccountInput"
+            class="delete-account-input"
+            type="text"
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck="false"
+            placeholder="yes delete account"
+        >
+
+        <p
+            id="deleteAccountError"
+            class="delete-account-error"
+            aria-live="polite"
+        ></p>
+
+        <div class="delete-account-actions">
+
+            <button
+                id="cancelDeleteAccount"
+                class="delete-cancel-button"
+                type="button"
+            >
+                Cancel
+            </button>
+
+            <button
+                id="confirmDeleteAccount"
+                class="delete-confirm-button"
+                type="button"
+                disabled
+            >
+                Delete account
+            </button>
+
+        </div>
+
+    </div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 
 <script src="app.js"></script>
