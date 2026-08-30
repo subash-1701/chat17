@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Chat17</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<!-- =========================
+     LOGIN
+========================= -->
+
+<div id="loginScreen" class="login-screen">
+
+    <div class="login-card">
+
+        <div class="login-logo">
+            💬
+        </div>
+
+        <h1>Welcome to Chat17</h1>
+
+        <p>
+            Connect with people using a room code.
+        </p>
+
+        <input
+            id="loginName"
+            type="text"
+            placeholder="Enter your name"
+            maxlength="20"
+            autocomplete="off"
+        >
+
+        <button id="startBtn">
+            Start Chatting
+        </button>
+
+        <div id="loginError"></div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     APP
+========================= -->
+
+<div id="app" class="app hidden">
+
+
+    <!-- =====================
+         LEFT SIDEBAR
+    ====================== -->
+
+    <aside id="sidebar" class="sidebar">
+
+        <!-- Sidebar Header -->
+
+        <header class="sidebar-header">
+
+            <div>
+                <span class="small-label">
+                    Messenger
+                </span>
+
+                <h1>Chats17</h1>
+            </div>
+
+            <button
+                id="addChatBtn"
+                class="icon-button"
+                title="New conversation"
+            >
+                +
+            </button>
+
+        </header>
+
+
+        <!-- Search -->
+
+        <div class="search-box">
+
+            <span>⌕</span>
+
+            <input
+                id="searchInput"
+                type="text"
+                placeholder="Search chats"
+                autocomplete="off"
+            >
+
+        </div>
+
+
+        <!-- Chat List -->
+
+        <div
+            id="chatList"
+            class="chat-list"
+        >
+
+            <div class="empty-chat">
+                <div>💬</div>
+
+                <p>
+                    No conversations yet
+                </p>
+
+                <small>
+                    Create or join a room to start chatting.
+                </small>
+            </div>
+
+        </div>
+
+
+        <!-- Desktop Profile -->
+
+        <div class="sidebar-user">
+
+            <div
+                id="sidebarAvatar"
+                class="user-avatar"
+            >
+                U
+            </div>
+
+            <div class="sidebar-user-info">
+
+                <strong id="sidebarUsername">
+                    User
+                </strong>
+
+                <small>
+                    Available
+                </small>
+
+            </div>
+
+            <button
+                id="sidebarProfileBtn"
+                class="more-button"
+            >
+                ⋮
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================
+         RIGHT MESSAGE PANEL
+    ====================== -->
+
+    <main
+        id="messagePanel"
+        class="message-panel hidden"
+    >
+
+        <!-- Empty State -->
+
+        <div
+            id="welcomePanel"
+            class="welcome-panel"
+        >
+
+            <div class="welcome-icon">
+                💬
+            </div>
+
+            <h2>
+                Chat17
+            </h2>
+
+            <p>
+                Select a conversation to start messaging.
+            </p>
+
+            <button id="welcomeCreateBtn">
+                Create a Room
+            </button>
+
+        </div>
+
+
+        <!-- Conversation -->
+
+        <div
+            id="conversation"
+            class="conversation hidden"
+        >
+
+            <!-- Conversation Header -->
+
+            <header class="conversation-header">
+
+                <button
+                    id="mobileBackBtn"
+                    class="mobile-back"
+                >
+                    ←
+                </button>
+
+                <div
+                    id="conversationAvatar"
+                    class="conversation-avatar"
+                >
+                    R
+                </div>
+
+                <div class="conversation-info">
+
+                    <strong id="conversationName">
+                        Room
+                    </strong>
+
+                    <small id="conversationStatus">
+                        Offline
+                    </small>
+
+                </div>
+
+                <button
+                    id="roomInfoBtn"
+                    class="conversation-more"
+                >
+                    ⋮
+                </button>
+
+            </header>
+
+
+            <!-- Messages -->
+
+            <div
+                id="messages"
+                class="messages"
+            >
+            </div>
+
+
+            <!-- Message Input -->
+
+            <form
+                id="messageForm"
+                class="message-form"
+            >
+
+                <input
+                    id="messageInput"
+                    type="text"
+                    placeholder="Type a message..."
+                    maxlength="500"
+                    autocomplete="off"
+                >
+
+                <button
+                    type="submit"
+                    class="send-button"
+                >
+                    ➤
+                </button>
+
+            </form>
+
+        </div>
+
+    </main>
+
+
+    <!-- =====================
+         MOBILE NAVIGATION
+    ====================== -->
+
+    <nav class="bottom-nav">
+
+        <button
+            class="nav-button active"
+            data-page="chat"
+        >
+
+            <span>💬</span>
+
+            <small>
+                Chat
+            </small>
+
+        </button>
+
+
+        <button
+            class="nav-button"
+            data-page="home"
+        >
+
+            <span>⌂</span>
+
+            <small>
+                Home
+            </small>
+
+        </button>
+
+
+        <button
+            class="nav-button"
+            data-page="profile"
+        >
+
+            <span>♙</span>
+
+            <small>
+                Profile
+            </small>
+
+        </button>
+
+    </nav>
+
+
+    <!-- =====================
+         MOBILE HOME
+    ====================== -->
+
+    <section
+        id="homePage"
+        class="mobile-page hidden"
+    >
+
+        <header class="mobile-page-header">
+
+            <span>Chat17</span>
+
+            <h1>Home</h1>
+
+        </header>
+
+
+        <div class="home-card">
+
+            <div class="home-icon">
+                💬
+            </div>
+
+            <h2>
+                Start a conversation
+            </h2>
+
+            <p>
+                Create a room or join an existing
+                room using a room code.
+            </p>
+
+            <button id="homeCreateBtn">
+                Create Room
+            </button>
+
+            <button
+                id="homeJoinBtn"
+                class="secondary-button"
+            >
+                Join Room
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================
+         MOBILE PROFILE
+    ====================== -->
+
+    <section
+        id="profilePage"
+        class="mobile-page hidden"
+    >
+
+        <header class="mobile-page-header">
+
+            <span>Chat17</span>
+
+            <h1>Profile</h1>
+
+        </header>
+
+
+        <div class="profile-card">
+
+            <div
+                id="profileAvatar"
+                class="profile-avatar"
+            >
+                U
+            </div>
+
+            <h2 id="profileName">
+                User
+            </h2>
+
+            <p>
+                Chat17 account
+            </p>
+
+        </div>
+
+
+        <div class="profile-stats">
+
+            <div>
+                <strong id="profileChats">
+                    0
+                </strong>
+
+                <span>
+                    Chats
+                </span>
+            </div>
+
+
+            <div>
+                <strong id="profileRooms">
+                    0
+                </strong>
+
+                <span>
+                    Rooms
+                </span>
+            </div>
+
+        </div>
+
+
+        <button
+            id="logoutBtn"
+            class="logout-button"
+        >
+            Logout
+        </button>
+
+    </section>
+
+</div>
+
+
+<!-- =========================
+     NEW CONVERSATION MODAL
+========================= -->
+
+<div
+    id="modal"
+    class="modal hidden"
+>
+
+    <div class="modal-card">
+
+        <div class="modal-header">
+
+            <div>
+                <span>
+                    Conversation
+                </span>
+
+                <h2>
+                    New Chat
+                </h2>
+            </div>
+
+            <button
+                id="closeModal"
+                class="modal-close"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- CREATE -->
+
+        <button
+            id="createModalBtn"
+            class="action-card"
+        >
+
+            <div class="action-icon">
+                ✨
+            </div>
+
+            <div>
+
+                <strong>
+                    Create Room
+                </strong>
+
+                <small>
+                    Create a new room and share its code.
+                </small>
+
+            </div>
+
+            <span>
+                ›
+            </span>
+
+        </button>
+
+
+        <!-- JOIN -->
+
+        <button
+            id="joinModalBtn"
+            class="action-card"
+        >
+
+            <div class="action-icon">
+                🔗
+            </div>
+
+            <div>
+
+                <strong>
+                    Join Room
+                </strong>
+
+                <small>
+                    Enter a room code to join.
+                </small>
+
+            </div>
+
+            <span>
+                ›
+            </span>
+
+        </button>
+
+
+        <!-- JOIN BOX -->
+
+        <div
+            id="joinBox"
+            class="join-box hidden"
+        >
+
+            <label>
+                Room Code
+            </label>
+
+            <div class="join-input-row">
+
+                <input
+                    id="roomCodeInput"
+                    type="text"
+                    placeholder="ABC123"
+                    maxlength="6"
+                    autocomplete="off"
+                >
+
+                <button id="confirmJoinBtn">
+                    Join
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     ROOM CODE POPUP
+========================= -->
+
+<div
+    id="roomCodePopup"
+    class="room-popup hidden"
+>
+
+    <div class="room-popup-card">
+
+        <button
+            id="closeRoomPopup"
+            class="popup-close"
+        >
+            ×
+        </button>
+
+        <div class="popup-icon">
+            🔗
+        </div>
+
+        <h2>
+            Room Created
+        </h2>
+
+        <p>
+            Share this code with people you want
+            to invite.
+        </p>
+
+        <div
+            id="createdRoomCode"
+            class="created-room-code"
+        >
+            ABC123
+        </div>
+
+        <button
+            id="copyRoomCode"
+            class="copy-button"
+        >
+            Copy Room Code
+        </button>
+
+        <button
+            id="continueRoomBtn"
+            class="continue-button"
+        >
+            Continue Chat
+        </button>
+
+    </div>
+
+</div>
+
+
+<script src="/socket.io/socket.io.js"></script>
+
+<script src="app.js"></script>
+
+</body>
+</html>

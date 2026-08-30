@@ -1,0 +1,18 @@
+{
+  "name": "chat17",
+  "version": "1.0.0",
+  "description": "Chat17 - a room-based real-time chat app (Express + Socket.IO)",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  }
+}
