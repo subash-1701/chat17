@@ -117,6 +117,20 @@ function cleanName(name) {
 
 
 /* ==========================================
+   CLEAN ROOM NAME
+========================================== */
+
+function cleanRoomName(name) {
+
+    return String(name || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 40);
+
+}
+
+
+/* ==========================================
    CLEAN ROOM
 ========================================== */
 
@@ -224,6 +238,9 @@ io.on(
                     name:
                         `Room ${roomCode}`,
 
+                    owner:
+                        username,
+
                     users:
                         new Map(),
 
@@ -257,6 +274,9 @@ io.on(
 
                     roomName:
                         room.name,
+
+                    owner:
+                        room.owner,
 
                     messages:
                         room.messages
@@ -367,6 +387,9 @@ io.on(
                     roomName:
                         room.name,
 
+                    owner:
+                        room.owner,
+
                     messages:
                         room.messages
 
@@ -464,6 +487,9 @@ io.on(
                     roomName:
                         room.name,
 
+                    owner:
+                        room.owner,
+
                     messages:
                         room.messages
 
@@ -474,6 +500,105 @@ io.on(
                     roomCode
                 );
 
+            }
+        );
+
+
+        /* ==================================
+           DELETE ROOM
+        ================================== */
+
+        socket.on(
+            "delete-room",
+            (data, callback) => {
+
+                data = data || {};
+
+                const roomCode = cleanRoomCode(data.roomCode);
+                const username = cleanName(data.username);
+                const room = rooms.get(roomCode);
+
+                if (!room) {
+                    if (typeof callback === "function") callback({
+                        success: false,
+                        message: "Room not found."
+                    });
+                    return;
+                }
+
+                if (!username || room.owner !== username) {
+                    if (typeof callback === "function") callback({
+                        success: false,
+                        message: "Only the room creator can delete this room."
+                    });
+                    return;
+                }
+
+                // Tell everyone currently inside that the room was deleted.
+                io.to(roomCode).emit("room-deleted", { roomCode });
+
+                rooms.delete(roomCode);
+
+                // Remove socket room state for connected members.
+                for (const socketId of room.users.keys()) {
+                    const member = io.sockets.sockets.get(socketId);
+                    if (member) {
+                        member.leave(roomCode);
+                        member.roomCode = "";
+                    }
+                }
+
+                if (typeof callback === "function") {
+                    callback({ success: true, roomCode });
+                }
+            }
+        );
+
+
+        /* ==================================
+           RENAME ROOM
+        ================================== */
+
+        socket.on(
+            "rename-room",
+            (data, callback) => {
+
+                data = data || {};
+
+                const roomCode = cleanRoomCode(data.roomCode);
+                const username = cleanName(data.username);
+                const roomName = cleanRoomName(data.roomName);
+                const room = rooms.get(roomCode);
+
+                if (!room) {
+                    if (typeof callback === "function") callback({ success: false, message: "Room not found." });
+                    return;
+                }
+
+                if (!username || room.owner !== username) {
+                    if (typeof callback === "function") callback({ success: false, message: "Only the room creator can rename this room." });
+                    return;
+                }
+
+                if (!roomName) {
+                    if (typeof callback === "function") callback({ success: false, message: "Room name is required." });
+                    return;
+                }
+
+                room.name = roomName;
+
+                io.to(roomCode).emit("room-renamed", {
+                    roomCode,
+                    roomName,
+                    owner: room.owner
+                });
+
+                callback({
+                    success: true,
+                    roomCode,
+                    roomName,
+                    owner: room.owner
+                });
             }
         );
 

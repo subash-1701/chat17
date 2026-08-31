@@ -60,7 +60,8 @@ rooms = rooms
     .filter(room => room && room.code)
     .map(room => ({
         code: String(room.code).toUpperCase(),
-        name: room.name || `Room ${room.code}`
+        name: room.name || `Room ${room.code}`,
+        owner: room.owner || ""
     }));
 
 
@@ -72,6 +73,11 @@ chats = chats
 
         name:
             chat.name || `Room ${chat.roomCode}`,
+
+        owner:
+            chat.owner ||
+            rooms.find(room => room.code === String(chat.roomCode).toUpperCase())?.owner ||
+            "",
 
         lastMessage:
             chat.lastMessage || "",
@@ -497,7 +503,10 @@ function createRoom() {
 
                 name:
                     result.roomName ||
-                    `Room ${result.roomCode}`
+                    `Room ${result.roomCode}`,
+
+                owner:
+                    result.owner || username
 
             };
 
@@ -565,7 +574,10 @@ function saveRoom(room) {
 
         name:
             room.name ||
-            `Room ${code}`
+            `Room ${code}`,
+
+        owner:
+            room.owner || ""
 
     };
 
@@ -637,6 +649,11 @@ function addChat(room) {
             existing.name ||
             `Room ${code}`;
 
+        existing.owner =
+            room.owner ||
+            existing.owner ||
+            "";
+
     } else {
 
         chats.unshift({
@@ -647,6 +664,10 @@ function addChat(room) {
             name:
                 room.name ||
                 `Room ${code}`,
+
+            owner:
+                room.owner ||
+                "",
 
             lastMessage:
                 "",
@@ -879,7 +900,10 @@ function performJoin(roomCode) {
 
                 name:
                     result.roomName ||
-                    `Room ${result.roomCode}`
+                    `Room ${result.roomCode}`,
+
+                owner:
+                    result.owner || ""
 
             };
 
@@ -964,6 +988,12 @@ function rejoinRoom(roomCode) {
 
             }
 
+
+            saveRoom({
+                code: result.roomCode,
+                name: result.roomName,
+                owner: result.owner || ""
+            });
 
             openConversation(
                 result.roomCode,
@@ -1305,6 +1335,13 @@ function renderChats() {
                             `Room ${chat.roomCode}`
                         ),
 
+                    owner:
+                        String(
+                            chat.owner ||
+                            rooms.find(room => room.code === String(chat.roomCode).toUpperCase())?.owner ||
+                            ""
+                        ),
+
                     lastMessage:
                         String(
                             chat.lastMessage ||
@@ -1496,6 +1533,46 @@ function renderChats() {
             );
 
 
+            // Room actions
+            // Resolve ownership from the canonical room record as well as the chat
+            // record. Older localStorage entries may not contain `owner`.
+            const roomRecord = rooms.find(
+                room => room.code === String(chat.roomCode).toUpperCase()
+            );
+            const roomOwner =
+                chat.owner ||
+                roomRecord?.owner ||
+                "";
+
+            if (roomOwner && chat.owner !== roomOwner) {
+                chat.owner = roomOwner;
+            }
+
+            const roomActions =
+                document.createElement("button");
+
+            roomActions.className = "room-delete-button";
+            roomActions.type = "button";
+            roomActions.title =
+                roomOwner === username
+                    ? "Room options"
+                    : "Only the room creator can manage this room";
+            roomActions.textContent = "⋮";
+            roomActions.setAttribute("aria-label", "Room options");
+            roomActions.disabled = roomOwner !== username;
+
+            roomActions.addEventListener("click", event => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (roomOwner !== username) return;
+
+                openRoomActionsMenu(roomActions, { ...chat, owner: roomOwner });
+            });
+
+            item.appendChild(roomActions);
+
+
             // Unread
 
             if (
@@ -1549,6 +1626,357 @@ function renderChats() {
     );
 
 }
+
+
+/* ==========================================
+   ROOM ACTIONS / RENAME ROOM
+========================================== */
+
+let activeRoomActionsMenu = null;
+
+function closeRoomActionsMenu() {
+    if (activeRoomActionsMenu) {
+        activeRoomActionsMenu.remove();
+        activeRoomActionsMenu = null;
+    }
+}
+
+function openRoomActionsMenu(button, chat) {
+    closeRoomActionsMenu();
+
+    // Always resolve the latest room record first. This keeps the menu
+    // working after a rename, when the chat object may still be stale.
+    const code = String(chat?.roomCode || chat?.code || currentRoom || "").toUpperCase();
+    const roomRecord = rooms.find(room => String(room.code).toUpperCase() === code);
+    const resolvedChat = {
+        ...(chat || {}),
+        ...(roomRecord || {}),
+        roomCode: code,
+        owner: roomRecord?.owner || chat?.owner || ""
+    };
+
+    if (!code) return;
+
+    const menu = document.createElement("div");
+    menu.className = "room-actions-menu";
+
+    const roomCodeButton = document.createElement("button");
+    roomCodeButton.type = "button";
+    roomCodeButton.className = "room-action-menu-item";
+    roomCodeButton.textContent = "Room code";
+    roomCodeButton.addEventListener("click", event => {
+        event.stopPropagation();
+        closeRoomActionsMenu();
+        openRoomCodeModal(code);
+    });
+
+    const renameButton = document.createElement("button");
+    renameButton.type = "button";
+    renameButton.className = "room-action-menu-item";
+    renameButton.textContent = "Rename room";
+    renameButton.addEventListener("click", event => {
+        event.stopPropagation();
+        closeRoomActionsMenu();
+        openRenameRoomDialog(resolvedChat);
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "room-action-menu-item room-action-danger";
+    deleteButton.textContent = "Delete room";
+    deleteButton.addEventListener("click", event => {
+        event.stopPropagation();
+        closeRoomActionsMenu();
+        openDeleteRoomDialog(resolvedChat);
+    });
+
+    menu.append(roomCodeButton, renameButton, deleteButton);
+    document.body.appendChild(menu);
+
+    const rect = button.getBoundingClientRect();
+    menu.style.top = `${Math.min(rect.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
+    menu.style.left = `${Math.min(rect.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8)}px`;
+
+    activeRoomActionsMenu = menu;
+}
+
+document.addEventListener("click", event => {
+    if (activeRoomActionsMenu && !activeRoomActionsMenu.contains(event.target)) {
+        closeRoomActionsMenu();
+    }
+});
+
+const renameRoomModal = document.getElementById("renameRoomModal");
+const renameRoomInput = document.getElementById("renameRoomInput");
+const confirmRenameRoom = document.getElementById("confirmRenameRoom");
+const closeRenameRoomModal = document.getElementById("closeRenameRoomModal");
+const cancelRenameRoom = document.getElementById("cancelRenameRoom");
+const renameRoomError = document.getElementById("renameRoomError");
+let roomPendingRename = null;
+
+function openRenameRoomDialog(chat) {
+    if (!chat || chat.owner !== username) return;
+    roomPendingRename = chat;
+    if (renameRoomModal) renameRoomModal.classList.remove("hidden");
+    if (renameRoomInput) {
+        renameRoomInput.value = chat.name || "";
+        requestAnimationFrame(() => {
+            renameRoomInput.focus();
+            renameRoomInput.select();
+        });
+    }
+    if (renameRoomError) renameRoomError.textContent = "";
+}
+
+function closeRenameRoomDialog() {
+    if (renameRoomModal) renameRoomModal.classList.add("hidden");
+    if (renameRoomInput) renameRoomInput.value = "";
+    if (renameRoomError) renameRoomError.textContent = "";
+    if (confirmRenameRoom) {
+        confirmRenameRoom.disabled = false;
+        confirmRenameRoom.textContent = "Rename room";
+    }
+    roomPendingRename = null;
+}
+
+function performRenameRoom() {
+    if (!roomPendingRename) return;
+    const newName = renameRoomInput ? renameRoomInput.value.trim() : "";
+
+    if (!newName) {
+        if (renameRoomError) renameRoomError.textContent = "Enter a room name.";
+        return;
+    }
+
+    if (newName.length > 40) {
+        if (renameRoomError) renameRoomError.textContent = "Room name must be 40 characters or fewer.";
+        return;
+    }
+
+    if (!socket.connected) {
+        if (renameRoomError) renameRoomError.textContent = "Connecting to server. Please wait...";
+        return;
+    }
+
+    if (confirmRenameRoom) {
+        confirmRenameRoom.disabled = true;
+        confirmRenameRoom.textContent = "Renaming…";
+    }
+
+    const code = String(roomPendingRename.roomCode).toUpperCase();
+    socket.emit("rename-room", { username, roomCode: code, roomName: newName }, result => {
+        if (!result || !result.success) {
+            if (renameRoomError) renameRoomError.textContent = result?.message || "Unable to rename room.";
+            if (confirmRenameRoom) {
+                confirmRenameRoom.disabled = false;
+                confirmRenameRoom.textContent = "Rename room";
+            }
+            return;
+        }
+        closeRenameRoomDialog();
+    });
+}
+
+if (confirmRenameRoom) confirmRenameRoom.addEventListener("click", performRenameRoom);
+if (renameRoomInput) {
+    renameRoomInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            performRenameRoom();
+        }
+    });
+}
+if (closeRenameRoomModal) closeRenameRoomModal.addEventListener("click", closeRenameRoomDialog);
+if (cancelRenameRoom) cancelRenameRoom.addEventListener("click", closeRenameRoomDialog);
+if (renameRoomModal) {
+    renameRoomModal.addEventListener("click", event => {
+        if (event.target === renameRoomModal) closeRenameRoomDialog();
+    });
+}
+
+socket.on("room-renamed", data => {
+    const code = String(data?.roomCode || "").toUpperCase();
+    const name = String(data?.roomName || "").trim();
+    if (!code || !name) return;
+
+    rooms = rooms.map(room =>
+        room.code === code ? { ...room, name } : room
+    );
+    const renamedRoom = rooms.find(room => room.code === code);
+    chats = chats.map(chat =>
+        chat.roomCode === code
+            ? { ...chat, name, owner: renamedRoom?.owner || chat.owner || "" }
+            : chat
+    );
+
+    localStorage.setItem("chat_rooms", JSON.stringify(rooms));
+    saveChats();
+
+    if (currentRoom === code) {
+        const nameElement = document.getElementById("conversationName");
+        const avatarElement = document.getElementById("conversationAvatar");
+        if (nameElement) nameElement.textContent = name;
+        if (avatarElement) avatarElement.textContent = name.charAt(0).toUpperCase();
+        if (currentChat) currentChat.name = name;
+    }
+
+    renderChats();
+});
+
+
+/* ==========================================
+   DELETE ROOM
+========================================== */
+
+const deleteRoomModal =
+    document.getElementById("deleteRoomModal");
+
+const deleteRoomInput =
+    document.getElementById("deleteRoomInput");
+
+const confirmDeleteRoom =
+    document.getElementById("confirmDeleteRoom");
+
+const closeDeleteRoomModal =
+    document.getElementById("closeDeleteRoomModal");
+
+const cancelDeleteRoom =
+    document.getElementById("cancelDeleteRoom");
+
+const deleteRoomError =
+    document.getElementById("deleteRoomError");
+
+let roomPendingDeletion = null;
+const DELETE_ROOM_PHRASE = "delete room";
+
+function openDeleteRoomDialog(chat) {
+    if (!chat || chat.owner !== username) return;
+
+    roomPendingDeletion = chat;
+
+    if (deleteRoomModal) deleteRoomModal.classList.remove("hidden");
+    if (deleteRoomInput) {
+        deleteRoomInput.value = "";
+        requestAnimationFrame(() => deleteRoomInput.focus());
+    }
+    validateDeleteRoomPhrase();
+}
+
+function closeDeleteRoomDialog() {
+    if (deleteRoomModal) deleteRoomModal.classList.add("hidden");
+    if (deleteRoomInput) deleteRoomInput.value = "";
+    if (confirmDeleteRoom) confirmDeleteRoom.disabled = true;
+    if (deleteRoomError) deleteRoomError.textContent = "";
+    roomPendingDeletion = null;
+}
+
+function validateDeleteRoomPhrase() {
+    const value = deleteRoomInput
+        ? deleteRoomInput.value.trim().toLowerCase()
+        : "";
+
+    const valid = value === DELETE_ROOM_PHRASE;
+    if (confirmDeleteRoom) confirmDeleteRoom.disabled = !valid;
+    if (deleteRoomError) {
+        deleteRoomError.textContent =
+            value && !valid ? "Type exactly: delete room" : "";
+    }
+    return valid;
+}
+
+function performDeleteRoom() {
+    if (!roomPendingDeletion || !validateDeleteRoomPhrase()) return;
+
+    const code = String(roomPendingDeletion.roomCode).toUpperCase();
+    if (confirmDeleteRoom) {
+        confirmDeleteRoom.disabled = true;
+        confirmDeleteRoom.textContent = "Deleting…";
+    }
+
+    const finish = () => {
+        rooms = rooms.filter(room => room.code !== code);
+        chats = chats.filter(chat => chat.roomCode !== code);
+        saveChats();
+        localStorage.setItem("chat_rooms", JSON.stringify(rooms));
+
+        if (currentRoom === code) {
+            currentRoom = "";
+            currentChat = null;
+            localStorage.removeItem("chat_current_room");
+            if (conversation) conversation.classList.add("hidden");
+            if (welcomePanel) welcomePanel.classList.remove("hidden");
+            if (messagePanel && window.innerWidth <= 767) {
+                messagePanel.classList.remove("mobile-open");
+            }
+        }
+
+        renderChats();
+        updateUserUI();
+        closeDeleteRoomDialog();
+    };
+
+    if (!socket.connected) {
+        alert("Connecting to server. Please wait...");
+        if (confirmDeleteRoom) {
+            confirmDeleteRoom.disabled = false;
+            confirmDeleteRoom.textContent = "Delete room";
+        }
+        return;
+    }
+
+    socket.emit("delete-room", { username, roomCode: code }, result => {
+        if (!result || !result.success) {
+            if (deleteRoomError) deleteRoomError.textContent = result?.message || "Unable to delete room.";
+            if (confirmDeleteRoom) {
+                confirmDeleteRoom.disabled = false;
+                confirmDeleteRoom.textContent = "Delete room";
+            }
+            return;
+        }
+        finish();
+    });
+}
+
+if (deleteRoomInput) {
+    deleteRoomInput.addEventListener("input", validateDeleteRoomPhrase);
+    deleteRoomInput.addEventListener("keydown", event => {
+        if (event.key === "Enter" && validateDeleteRoomPhrase()) {
+            event.preventDefault();
+            performDeleteRoom();
+        }
+    });
+}
+
+if (confirmDeleteRoom) confirmDeleteRoom.addEventListener("click", performDeleteRoom);
+if (closeDeleteRoomModal) closeDeleteRoomModal.addEventListener("click", closeDeleteRoomDialog);
+if (cancelDeleteRoom) cancelDeleteRoom.addEventListener("click", closeDeleteRoomDialog);
+if (deleteRoomModal) {
+    deleteRoomModal.addEventListener("click", event => {
+        if (event.target === deleteRoomModal) closeDeleteRoomDialog();
+    });
+}
+
+socket.on("room-deleted", data => {
+    const code = String(data?.roomCode || "").toUpperCase();
+    if (!code) return;
+
+    rooms = rooms.filter(room => room.code !== code);
+    chats = chats.filter(chat => chat.roomCode !== code);
+    saveChats();
+    localStorage.setItem("chat_rooms", JSON.stringify(rooms));
+
+    if (currentRoom === code) {
+        currentRoom = "";
+        currentChat = null;
+        localStorage.removeItem("chat_current_room");
+        if (conversation) conversation.classList.add("hidden");
+        if (welcomePanel) welcomePanel.classList.remove("hidden");
+        if (messagePanel && window.innerWidth <= 767) messagePanel.classList.remove("mobile-open");
+    }
+
+    renderChats();
+    updateUserUI();
+});
 
 
 /* ==========================================
@@ -2306,6 +2734,44 @@ if (modal) {
 
 
 /* ==========================================
+   ROOM CODE MENU MODAL
+========================================== */
+function openRoomCodeModal(code) {
+    const modal = document.getElementById("roomCodeModal");
+    const value = document.getElementById("roomCodeValue");
+    const copied = document.getElementById("roomCodeCopied");
+    if (!modal) return;
+    if (value) value.textContent = code || "—";
+    if (copied) copied.textContent = "";
+    modal.classList.remove("hidden");
+}
+
+function closeRoomCodeModal() {
+    const modal = document.getElementById("roomCodeModal");
+    if (modal) modal.classList.add("hidden");
+}
+
+const closeRoomCodeModalBtn = document.getElementById("closeRoomCodeModal");
+const closeRoomCodeModalButton = document.getElementById("closeRoomCodeModalButton");
+const copyRoomCodeBtn = document.getElementById("copyRoomCodeBtn");
+if (closeRoomCodeModalBtn) closeRoomCodeModalBtn.addEventListener("click", closeRoomCodeModal);
+if (closeRoomCodeModalButton) closeRoomCodeModalButton.addEventListener("click", closeRoomCodeModal);
+if (copyRoomCodeBtn) copyRoomCodeBtn.addEventListener("click", async () => {
+    const code = document.getElementById("roomCodeValue")?.textContent?.trim() || "";
+    const copied = document.getElementById("roomCodeCopied");
+    try {
+        await navigator.clipboard.writeText(code);
+        if (copied) copied.textContent = "Copied ✓";
+    } catch {
+        if (copied) copied.textContent = "Copy failed. Long-press the code to copy it.";
+    }
+});
+const roomCodeModal = document.getElementById("roomCodeModal");
+if (roomCodeModal) roomCodeModal.addEventListener("click", event => {
+    if (event.target === roomCodeModal) closeRoomCodeModal();
+});
+
+/* ==========================================
    ROOM CODE POPUP
 ========================================== */
 
@@ -2962,3 +3428,25 @@ function repairChatList() {
 
 
 repairChatList();
+/* ==========================================
+   MOBILE / CHAT HEADER ROOM MENU
+   The same 3-dot menu works inside the open chat.
+========================================== */
+const roomInfoBtn = document.getElementById("roomInfoBtn");
+if (roomInfoBtn) {
+    roomInfoBtn.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const code = String(currentRoom || "").toUpperCase();
+        const room = rooms.find(r => String(r.code).toUpperCase() === code);
+        const chat = chats.find(c => String(c.roomCode).toUpperCase() === code) || currentChat;
+        if (room || chat) {
+            openRoomActionsMenu(roomInfoBtn, {
+                ...(chat || {}),
+                ...(room || {}),
+                roomCode: code,
+                owner: room?.owner || chat?.owner || ""
+            });
+        }
+    });
+}

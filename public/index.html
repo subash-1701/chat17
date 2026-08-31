@@ -181,7 +181,7 @@
                     Messenger
                 </span>
 
-                <h1>Chats17</h1>
+                <h1>Chat17</h1>
             </div>
 
             <button
@@ -762,6 +762,91 @@
 
 </div>
 
+
+
+<!-- =========================
+     RENAME ROOM
+========================= -->
+
+<div
+    id="renameRoomModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="renameRoomTitle"
+>
+    <div class="delete-account-card rename-room-card">
+        <button id="closeRenameRoomModal" class="delete-modal-close" type="button" aria-label="Close">×</button>
+        <div class="delete-warning-icon">✏️</div>
+        <h2 id="renameRoomTitle">Rename room</h2>
+        <p class="delete-account-warning">Choose a new name for this room. The new name will be visible to everyone in the room.</p>
+        <label for="renameRoomInput" class="delete-confirm-label">Room name</label>
+        <input id="renameRoomInput" class="delete-account-input" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Enter room name">
+        <p id="renameRoomError" class="delete-account-error" aria-live="polite"></p>
+        <div class="delete-account-actions">
+            <button id="cancelRenameRoom" class="delete-cancel-button" type="button">Cancel</button>
+            <button id="confirmRenameRoom" class="delete-confirm-button rename-confirm-button" type="button">Rename room</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- =========================
+     DELETE ROOM CONFIRMATION
+========================= -->
+
+<div
+    id="deleteRoomModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="deleteRoomTitle"
+>
+    <div class="delete-account-card">
+        <button id="closeDeleteRoomModal" class="delete-modal-close" type="button" aria-label="Close">×</button>
+        <div class="delete-warning-icon">⚠️</div>
+        <h2 id="deleteRoomTitle">Delete this room?</h2>
+        <p class="delete-account-warning">
+            This will permanently delete the room and its messages for everyone in the room.
+            <strong>This action cannot be undone.</strong>
+        </p>
+        <label for="deleteRoomInput" class="delete-confirm-label">
+            To confirm, type <code>delete room</code> below:
+        </label>
+        <input id="deleteRoomInput" class="delete-account-input" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="delete room">
+        <p id="deleteRoomError" class="delete-account-error" aria-live="polite"></p>
+        <div class="delete-account-actions">
+            <button id="cancelDeleteRoom" class="delete-cancel-button" type="button">Cancel</button>
+            <button id="confirmDeleteRoom" class="delete-confirm-button" type="button" disabled>Delete room</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- =========================
+     ROOM CODE DIALOG
+========================= -->
+
+<div
+    id="roomCodeModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="roomCodeTitle"
+>
+    <div class="delete-account-card room-code-card">
+        <button id="closeRoomCodeModal" class="delete-modal-close" type="button" aria-label="Close">×</button>
+        <div class="delete-warning-icon">🔗</div>
+        <h2 id="roomCodeTitle">Room code</h2>
+        <p class="delete-account-warning">Share this code with someone to let them join this room.</p>
+        <div id="roomCodeValue" class="room-code-display">ABC123</div>
+        <p id="roomCodeCopied" class="room-code-copied" aria-live="polite"></p>
+        <div class="delete-account-actions">
+            <button id="closeRoomCodeModalButton" class="delete-cancel-button" type="button">Close</button>
+            <button id="copyRoomCodeBtn" class="delete-confirm-button" type="button">Copy code</button>
+        </div>
+    </div>
+</div>
 
 
 <!-- =========================

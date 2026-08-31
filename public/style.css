@@ -2065,3 +2065,115 @@ input {
 
     font-weight: bold;
 }
+
+/* ==================================
+   ROOM DELETE ACTION
+================================== */
+.room-delete-button {
+    width: 30px;
+    height: 34px;
+    flex: 0 0 30px;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity .15s, background .15s;
+}
+
+.chat-item:hover .room-delete-button,
+.chat-item:focus-within .room-delete-button {
+    opacity: 1;
+}
+
+.room-delete-button:disabled {
+    opacity: 0;
+    cursor: default;
+}
+
+.room-delete-button:not(:disabled):hover {
+    background: #fdeeec;
+    color: var(--danger);
+}
+
+@media (max-width: 767px) {
+    .room-delete-button:not(:disabled) {
+        opacity: .7;
+    }
+}
+
+/* ==================================
+   ROOM ACTIONS MENU / RENAME
+================================== */
+.room-actions-menu {
+    position: fixed;
+    z-index: 10050;
+    min-width: 150px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card, #fff);
+    box-shadow: 0 12px 30px rgba(0,0,0,.16);
+}
+
+.room-action-menu-item {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.room-action-menu-item:hover {
+    background: var(--hover, rgba(0,0,0,.06));
+}
+
+.room-action-menu-item.room-action-danger {
+    color: var(--danger);
+}
+
+.rename-room-card .delete-warning-icon {
+    font-size: 30px;
+}
+
+@media (max-width: 767px) {
+    .room-actions-menu {
+        min-width: 165px;
+    }
+}
+
+
+/* Room code dialog */
+.room-code-card {
+    text-align: center;
+}
+.room-code-display {
+    margin: 18px 0 8px;
+    padding: 15px 18px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--background);
+    color: var(--text);
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    user-select: all;
+}
+.room-code-copied {
+    min-height: 20px;
+    margin: 4px 0 10px;
+    color: var(--primary);
+    font-size: 13px;
+}
+
+/* Room actions: keep the mobile chat header menu easy to use. */
+.room-actions-menu .room-action-menu-item { min-height: 44px; }
+@media (max-width: 767px) {
+  .room-actions-menu { min-width: 170px; max-width: calc(100vw - 16px); }
+}
