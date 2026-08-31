@@ -813,6 +813,16 @@ input {
     text-overflow: ellipsis;
 }
 
+.conversation-info .conversation-room-code {
+    display: inline-block;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.2;
+    margin-left: 6px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
 .conversation-info small {
     display: flex;
     align-items: center;

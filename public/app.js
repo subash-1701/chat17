@@ -1119,7 +1119,6 @@ function openConversation(
 
     }
 
-
     if (avatarElement) {
 
         avatarElement.textContent =
