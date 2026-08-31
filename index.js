@@ -690,7 +690,7 @@ io.on(
 
         socket.on(
             "send-message",
-            message => {
+            payload => {
 
                 if (
                     !socket.roomCode
@@ -712,6 +712,8 @@ io.on(
                 }
 
 
+                const replyTo = payload && typeof payload === "object" ? payload.replyTo : null;
+                let message = payload && typeof payload === "object" ? payload.message : payload;
                 message =
                     String(
                         message || ""
@@ -747,6 +749,12 @@ io.on(
                     // sender name for rendering message ownership in history.
                     senderUsername:
                         socket.username,
+
+                    replyTo: replyTo && replyTo.message ? {
+                        id: String(replyTo.id || "").slice(0, 100),
+                        username: cleanName(replyTo.username || "User"),
+                        message: String(replyTo.message || "").slice(0, 500)
+                    } : null,
 
                     roomCode:
                         socket.roomCode,
