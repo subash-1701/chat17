@@ -50,7 +50,6 @@ let currentRoom =
     localStorage.getItem("chat_current_room") || "";
 
 let currentChat = null;
-let replyToMessage = null;
 
 function getPersonalRoomNames() {
     try {
@@ -2063,19 +2062,11 @@ if (messageForm) {
 
             socket.emit(
                 "send-message",
-                {
-                    message,
-                    replyTo: replyToMessage ? {
-                        id: replyToMessage.id || "",
-                        username: replyToMessage.username || "User",
-                        message: replyToMessage.message || ""
-                    } : null
-                }
+                message
             );
 
 
             input.value = "";
-            clearReply();
 
             input.focus();
 
@@ -2145,7 +2136,6 @@ function addMessage(data) {
 
     element.className =
         "message";
-    if (data.id) element.dataset.messageId = String(data.id);
 
 
     // socket.id is temporary and changes whenever the phone reconnects.
@@ -2163,7 +2153,6 @@ function addMessage(data) {
     if (isOwnMessage) {
         element.classList.add("own");
     }
-    element._messageData = data;
 
 
     const name =
@@ -2177,25 +2166,6 @@ function addMessage(data) {
     name.textContent =
         data.username ||
         "User";
-
-
-    if (data.replyTo && data.replyTo.message) {
-        const reply = document.createElement("div");
-        reply.className = "message-reply";
-        reply.dataset.replyId = data.replyTo.id || "";
-        reply.innerHTML = `<strong></strong><span></span>`;
-        reply.querySelector("strong").textContent = data.replyTo.username || "User";
-        reply.querySelector("span").textContent = data.replyTo.message;
-        reply.addEventListener("click", () => {
-            const target = messages.querySelector(`[data-message-id="${CSS.escape(String(data.replyTo.id || ""))}"]`);
-            if (target) {
-                target.scrollIntoView({ behavior: "smooth", block: "center" });
-                target.classList.add("message-highlight");
-                setTimeout(() => target.classList.remove("message-highlight"), 900);
-            }
-        });
-        element.appendChild(reply);
-    }
 
 
     const text =
@@ -2242,73 +2212,6 @@ function addMessage(data) {
 
 }
 
-
-/* ==========================================
-   WHATSAPP-STYLE SWIPE TO REPLY
-========================================== */
-
-function showReply(messageData) {
-    replyToMessage = messageData;
-    const preview = document.getElementById("replyPreview");
-    const name = document.getElementById("replyPreviewName");
-    const text = document.getElementById("replyPreviewText");
-    if (!preview) return;
-    name.textContent = messageData.username || "User";
-    text.textContent = messageData.message || "";
-    preview.classList.remove("hidden");
-    const input = document.getElementById("messageInput");
-    if (input) input.focus({ preventScroll: true });
-}
-
-function clearReply() {
-    replyToMessage = null;
-    const preview = document.getElementById("replyPreview");
-    if (preview) preview.classList.add("hidden");
-}
-
-const cancelReplyBtn = document.getElementById("cancelReplyBtn");
-if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
-
-function enableSwipeReply() {
-    if (!messages) return;
-    let startX = 0, startY = 0, currentX = 0, swiping = false, target = null;
-    messages.addEventListener("touchstart", event => {
-        const messageEl = event.target.closest(".message");
-        if (!messageEl || event.touches.length !== 1) return;
-        startX = event.touches[0].clientX;
-        startY = event.touches[0].clientY;
-        currentX = startX;
-        target = messageEl;
-        swiping = false;
-    }, { passive: true });
-    messages.addEventListener("touchmove", event => {
-        if (!target || event.touches.length !== 1) return;
-        currentX = event.touches[0].clientX;
-        const dx = currentX - startX;
-        const dy = Math.abs(event.touches[0].clientY - startY);
-        if (Math.abs(dx) > 8 && Math.abs(dx) > dy) swiping = true;
-        if (swiping && dx > 0) {
-            const move = Math.min(dx, 85);
-            target.style.transform = `translateX(${move}px)`;
-            target.classList.toggle("swiping-reply", move > 25);
-        }
-    }, { passive: true });
-    messages.addEventListener("touchend", () => {
-        if (!target) return;
-        const dx = currentX - startX;
-        const id = target.dataset.messageId;
-        if (swiping && dx >= 55 && id) {
-            const found = Array.from(messages.querySelectorAll(".message"))
-                .find(el => el.dataset.messageId === id);
-            if (found && found._messageData) showReply(found._messageData);
-        }
-        target.style.transform = "";
-        target.classList.remove("swiping-reply");
-        target = null; swiping = false;
-    });
-}
-
-enableSwipeReply();
 
 /* ==========================================
    SYSTEM MESSAGE
