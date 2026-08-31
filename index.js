@@ -247,6 +247,10 @@ io.on(
                     messages:
                         [],
 
+                    // Each user may keep a private/favourite room name.
+                    namesByUser:
+                        new Map(),
+
                     createdAt:
                         Date.now()
 
@@ -273,7 +277,7 @@ io.on(
                     roomCode,
 
                     roomName:
-                        room.name,
+                        room.namesByUser?.get(username) || room.name,
 
                     owner:
                         room.owner,
@@ -385,7 +389,7 @@ io.on(
                         room.code,
 
                     roomName:
-                        room.name,
+                        room.namesByUser?.get(username) || room.name,
 
                     owner:
                         room.owner,
@@ -485,7 +489,7 @@ io.on(
                         room.code,
 
                     roomName:
-                        room.name,
+                        room.namesByUser?.get(username) || room.name,
 
                     owner:
                         room.owner,
@@ -575,8 +579,16 @@ io.on(
                     return;
                 }
 
-                if (!username || room.owner !== username) {
-                    if (typeof callback === "function") callback({ success: false, message: "Only the room creator can rename this room." });
+                // Renaming is a personal preference: every participant can set
+                // their own name without changing the other participant's name.
+                if (!username) {
+                    if (typeof callback === "function") callback({ success: false, message: "Username is required." });
+                    return;
+                }
+
+                const participant = room.users.get(socket.id);
+                if (!participant || participant.username !== username) {
+                    if (typeof callback === "function") callback({ success: false, message: "Join the room before renaming it." });
                     return;
                 }
 
@@ -585,19 +597,16 @@ io.on(
                     return;
                 }
 
-                room.name = roomName;
+                if (!room.namesByUser) room.namesByUser = new Map();
+                room.namesByUser.set(username, roomName);
 
-                io.to(roomCode).emit("room-renamed", {
-                    roomCode,
-                    roomName,
-                    owner: room.owner
-                });
-
+                // Do NOT broadcast this rename. It belongs only to this user.
                 callback({
                     success: true,
                     roomCode,
                     roomName,
-                    owner: room.owner
+                    owner: room.owner,
+                    personal: true
                 });
             }
         );

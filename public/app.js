@@ -51,6 +51,27 @@ let currentRoom =
 
 let currentChat = null;
 
+function getPersonalRoomNames() {
+    try {
+        const value = JSON.parse(localStorage.getItem("chat_personal_room_names") || "{}");
+        return value && typeof value === "object" ? value : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function getPersonalRoomName(code) {
+    const names = getPersonalRoomNames();
+    return names[String(code || "").toUpperCase()] || "";
+}
+
+function setPersonalRoomName(code, name) {
+    const key = String(code || "").toUpperCase();
+    const names = getPersonalRoomNames();
+    names[key] = name;
+    localStorage.setItem("chat_personal_room_names", JSON.stringify(names));
+}
+
 
 /* ==========================================
    NORMALIZE OLD DATA
@@ -60,7 +81,7 @@ rooms = rooms
     .filter(room => room && room.code)
     .map(room => ({
         code: String(room.code).toUpperCase(),
-        name: room.name || `Room ${room.code}`,
+        name: getPersonalRoomName(room.code) || room.name || `Room ${room.code}`,
         owner: room.owner || ""
     }));
 
@@ -72,7 +93,7 @@ chats = chats
             String(chat.roomCode).toUpperCase(),
 
         name:
-            chat.name || `Room ${chat.roomCode}`,
+            getPersonalRoomName(chat.roomCode) || chat.name || `Room ${chat.roomCode}`,
 
         owner:
             chat.owner ||
@@ -1119,6 +1140,7 @@ function openConversation(
 
     }
 
+
     if (avatarElement) {
 
         avatarElement.textContent =
@@ -1553,18 +1575,14 @@ function renderChats() {
             roomActions.className = "room-delete-button";
             roomActions.type = "button";
             roomActions.title =
-                roomOwner === username
-                    ? "Room options"
-                    : "Only the room creator can manage this room";
+                "Room options";
             roomActions.textContent = "⋮";
             roomActions.setAttribute("aria-label", "Room options");
-            roomActions.disabled = roomOwner !== username;
+            roomActions.disabled = false;
 
             roomActions.addEventListener("click", event => {
                 event.preventDefault();
                 event.stopPropagation();
-
-                if (roomOwner !== username) return;
 
                 openRoomActionsMenu(roomActions, { ...chat, owner: roomOwner });
             });
@@ -1714,11 +1732,11 @@ const renameRoomError = document.getElementById("renameRoomError");
 let roomPendingRename = null;
 
 function openRenameRoomDialog(chat) {
-    if (!chat || chat.owner !== username) return;
+    if (!chat) return;
     roomPendingRename = chat;
     if (renameRoomModal) renameRoomModal.classList.remove("hidden");
     if (renameRoomInput) {
-        renameRoomInput.value = chat.name || "";
+        renameRoomInput.value = getPersonalRoomName(chat.roomCode) || chat.name || "";
         requestAnimationFrame(() => {
             renameRoomInput.focus();
             renameRoomInput.select();
@@ -1772,6 +1790,25 @@ function performRenameRoom() {
             }
             return;
         }
+
+        setPersonalRoomName(code, newName);
+        rooms = rooms.map(room =>
+            room.code === code ? { ...room, name: newName } : room
+        );
+        chats = chats.map(chat =>
+            chat.roomCode === code ? { ...chat, name: newName } : chat
+        );
+        localStorage.setItem("chat_rooms", JSON.stringify(rooms));
+        saveChats();
+
+        if (currentRoom === code) {
+            const nameElement = document.getElementById("conversationName");
+            const avatarElement = document.getElementById("conversationAvatar");
+            if (nameElement) nameElement.textContent = newName;
+            if (avatarElement) avatarElement.textContent = newName.charAt(0).toUpperCase();
+            if (currentChat) currentChat.name = newName;
+        }
+        renderChats();
         closeRenameRoomDialog();
     });
 }
@@ -1793,33 +1830,8 @@ if (renameRoomModal) {
     });
 }
 
-socket.on("room-renamed", data => {
-    const code = String(data?.roomCode || "").toUpperCase();
-    const name = String(data?.roomName || "").trim();
-    if (!code || !name) return;
-
-    rooms = rooms.map(room =>
-        room.code === code ? { ...room, name } : room
-    );
-    const renamedRoom = rooms.find(room => room.code === code);
-    chats = chats.map(chat =>
-        chat.roomCode === code
-            ? { ...chat, name, owner: renamedRoom?.owner || chat.owner || "" }
-            : chat
-    );
-
-    localStorage.setItem("chat_rooms", JSON.stringify(rooms));
-    saveChats();
-
-    if (currentRoom === code) {
-        const nameElement = document.getElementById("conversationName");
-        const avatarElement = document.getElementById("conversationAvatar");
-        if (nameElement) nameElement.textContent = name;
-        if (avatarElement) avatarElement.textContent = name.charAt(0).toUpperCase();
-        if (currentChat) currentChat.name = name;
-    }
-
-    renderChats();
+socket.on("room-renamed", () => {
+    // Personal room names are never broadcast to other users.
 });
 
 
@@ -1849,7 +1861,7 @@ let roomPendingDeletion = null;
 const DELETE_ROOM_PHRASE = "delete room";
 
 function openDeleteRoomDialog(chat) {
-    if (!chat || chat.owner !== username) return;
+    if (!chat) return;
 
     roomPendingDeletion = chat;
 
