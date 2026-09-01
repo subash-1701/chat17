@@ -988,6 +988,24 @@ input {
     box-shadow: 0 0 0 2px rgba(15, 110, 93, .16), var(--shadow-sm);
 }
 
+.message.reply-highlight {
+    animation: replyHighlight 1.2s ease-out;
+}
+
+@keyframes replyHighlight {
+    0% { transform: scale(1.025); box-shadow: 0 0 0 3px rgba(15, 110, 93, .38), 0 6px 22px rgba(15, 110, 93, .18); }
+    55% { transform: scale(1.015); box-shadow: 0 0 0 3px rgba(15, 110, 93, .24), 0 5px 18px rgba(15, 110, 93, .12); }
+    100% { transform: scale(1); box-shadow: var(--shadow-sm); }
+}
+
+.reply-quote {
+    cursor: pointer;
+}
+
+.reply-quote:active {
+    opacity: .8;
+}
+
 .reply-quote {
     display: flex;
     flex-direction: column;

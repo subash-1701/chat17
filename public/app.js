@@ -2244,6 +2244,8 @@ function addMessage(data) {
     element.className =
         "message";
 
+    if (data.id) element.dataset.messageId = String(data.id);
+
 
     // socket.id is temporary and changes whenever the phone reconnects.
     // Use the message username as the fallback so previously loaded messages
@@ -2307,6 +2309,10 @@ function addMessage(data) {
     if (data.replyTo && data.replyTo.message) {
         const quote = document.createElement("div");
         quote.className = "reply-quote";
+        if (data.replyTo.id) quote.dataset.replyToId = String(data.replyTo.id);
+        quote.setAttribute("role", "button");
+        quote.setAttribute("tabindex", "0");
+        quote.title = "View replied message";
 
         const quoteName = document.createElement("strong");
         quoteName.textContent = data.replyTo.username || "User";
@@ -2316,6 +2322,26 @@ function addMessage(data) {
 
         quote.appendChild(quoteName);
         quote.appendChild(quoteText);
+
+        const jumpToOriginal = () => {
+            const id = quote.dataset.replyToId;
+            if (!id || !messages) return;
+            const original = messages.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+            if (!original) return;
+            original.scrollIntoView({ behavior: "smooth", block: "center" });
+            original.classList.remove("reply-highlight");
+            void original.offsetWidth;
+            original.classList.add("reply-highlight");
+            window.setTimeout(() => original.classList.remove("reply-highlight"), 1200);
+        };
+        quote.addEventListener("click", jumpToOriginal);
+        quote.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                jumpToOriginal();
+            }
+        });
+
         element.appendChild(quote);
     }
 
