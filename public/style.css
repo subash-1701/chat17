@@ -973,6 +973,98 @@ input {
 
 
 /* ==================================
+   SWIPE / REPLY
+================================== */
+
+.message {
+    touch-action: pan-y;
+    position: relative;
+    will-change: transform;
+}
+
+.message.swiping { transition: none; }
+
+.message.reply-ready {
+    box-shadow: 0 0 0 2px rgba(15, 110, 93, .16), var(--shadow-sm);
+}
+
+.reply-quote {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 0 7px;
+    padding: 6px 8px;
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, .045);
+    min-width: 0;
+}
+
+.message.own .reply-quote {
+    background: rgba(255, 255, 255, .12);
+    border-left-color: rgba(255, 255, 255, .75);
+}
+
+.reply-quote strong { font-size: 9px; line-height: 1.2; }
+.reply-quote span {
+    font-size: 10px;
+    line-height: 1.25;
+    opacity: .75;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reply-bar {
+    min-height: 54px;
+    padding: 7px 12px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: white;
+    border-top: 1px solid var(--border);
+}
+
+.reply-indicator {
+    width: 3px;
+    align-self: stretch;
+    border-radius: 4px;
+    background: var(--accent);
+}
+
+.reply-content {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.reply-content strong { font-size: 10px; color: var(--accent-dark); }
+
+.reply-content span {
+    min-width: 0;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reply-close {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    font-size: 21px;
+    line-height: 1;
+}
+
+.reply-close:hover { background: var(--background); }
+
+/* ==================================
    MESSAGE FORM
 ================================== */
 

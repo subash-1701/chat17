@@ -51,6 +51,9 @@ let currentRoom =
 
 let currentChat = null;
 
+let replyingTo = null;
+let swipeState = null;
+
 function getPersonalRoomNames() {
     try {
         const value = JSON.parse(localStorage.getItem("chat_personal_room_names") || "{}");
@@ -2060,19 +2063,123 @@ if (messageForm) {
             }
 
 
+            const payload = replyingTo
+                ? {
+                    message,
+                    replyTo: {
+                        id: replyingTo.id,
+                        username: replyingTo.username,
+                        message: replyingTo.message
+                    }
+                }
+                : message;
+
             socket.emit(
                 "send-message",
-                message
+                payload
             );
 
-
             input.value = "";
-
+            clearReply();
             input.focus();
 
         }
     );
 
+}
+
+
+/* ==========================================
+   SWIPE TO REPLY — WhatsApp style
+========================================== */
+
+function setReply(messageData) {
+    if (!messageData || !messageData.id) return;
+
+    replyingTo = {
+        id: messageData.id,
+        username: messageData.username || "User",
+        message: messageData.message || ""
+    };
+
+    if (replyName) replyName.textContent = replyingTo.username;
+    if (replyText) replyText.textContent = replyingTo.message;
+
+    if (replyBar) {
+        replyBar.classList.remove("hidden");
+        replyBar.setAttribute("aria-hidden", "false");
+    }
+
+    const input = document.getElementById("messageInput");
+    if (input) input.focus();
+}
+
+function clearReply() {
+    replyingTo = null;
+    if (replyBar) {
+        replyBar.classList.add("hidden");
+        replyBar.setAttribute("aria-hidden", "true");
+    }
+}
+
+if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
+
+function attachSwipeReply(element, messageData) {
+    let startX = 0;
+    let startY = 0;
+    let swiping = false;
+
+    element.addEventListener("pointerdown", event => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        startX = event.clientX;
+        startY = event.clientY;
+        swiping = false;
+        swipeState = { element, startX, startY };
+        try { element.setPointerCapture(event.pointerId); } catch (_) {}
+    });
+
+    element.addEventListener("pointermove", event => {
+        if (!swipeState || swipeState.element !== element) return;
+
+        const dx = event.clientX - startX;
+        const dy = event.clientY - startY;
+
+        if (!swiping && Math.abs(dx) < 8) return;
+
+        if (!swiping && Math.abs(dy) > Math.abs(dx)) {
+            swipeState = null;
+            return;
+        }
+
+        swiping = true;
+        const direction = dx >= 0 ? 1 : -1;
+        const distance = Math.min(Math.abs(dx), 82);
+
+        element.style.transform = `translateX(${direction * distance}px)`;
+        element.classList.add("swiping");
+        element.classList.toggle("reply-ready", distance >= 60);
+    });
+
+    const finishSwipe = event => {
+        if (!swipeState || swipeState.element !== element) return;
+
+        const dx = event.clientX - startX;
+        const dy = event.clientY - startY;
+        const shouldReply =
+            swiping &&
+            Math.abs(dx) >= 60 &&
+            Math.abs(dx) > Math.abs(dy);
+
+        element.style.transform = "";
+        element.classList.remove("swiping", "reply-ready");
+        swipeState = null;
+
+        if (shouldReply) setReply(messageData);
+        swiping = false;
+    };
+
+    element.addEventListener("pointerup", finishSwipe);
+    element.addEventListener("pointercancel", finishSwipe);
 }
 
 
@@ -2197,10 +2304,25 @@ function addMessage(data) {
 
     element.appendChild(name);
 
-    element.appendChild(text);
+    if (data.replyTo && data.replyTo.message) {
+        const quote = document.createElement("div");
+        quote.className = "reply-quote";
 
+        const quoteName = document.createElement("strong");
+        quoteName.textContent = data.replyTo.username || "User";
+
+        const quoteText = document.createElement("span");
+        quoteText.textContent = data.replyTo.message;
+
+        quote.appendChild(quoteName);
+        quote.appendChild(quoteText);
+        element.appendChild(quote);
+    }
+
+    element.appendChild(text);
     element.appendChild(time);
 
+    attachSwipeReply(element, data);
 
     messages.appendChild(
         element

@@ -690,7 +690,7 @@ io.on(
 
         socket.on(
             "send-message",
-            message => {
+            payload => {
 
                 if (
                     !socket.roomCode
@@ -712,9 +712,11 @@ io.on(
                 }
 
 
-                message =
+                const message =
                     String(
-                        message || ""
+                        typeof payload === "string"
+                            ? payload
+                            : payload?.message || ""
                     )
                         .trim()
                         .slice(
@@ -722,9 +724,29 @@ io.on(
                             2000
                         );
 
-
                 if (!message) {
                     return;
+                }
+
+                let replyTo = null;
+
+                if (
+                    payload &&
+                    typeof payload === "object" &&
+                    payload.replyTo &&
+                    payload.replyTo.id
+                ) {
+                    const original = room.messages.find(
+                        item => item.id === String(payload.replyTo.id)
+                    );
+
+                    if (original) {
+                        replyTo = {
+                            id: original.id,
+                            username: original.username,
+                            message: original.message
+                        };
+                    }
                 }
 
 
@@ -753,7 +775,9 @@ io.on(
 
                     time:
                         new Date()
-                            .toISOString()
+                            .toISOString(),
+
+                    replyTo
 
                 };
 
