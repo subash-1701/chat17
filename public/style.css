@@ -132,7 +132,8 @@ input {
 
     border-radius: var(--radius-md);
 
-    background: linear-gradient(150deg, var(--primary-light), var(--accent-light));
+    /* The logo already contains its own rounded square; don't add a second box. */
+    background: transparent;
 
     font-size: 30px;
 }
@@ -2332,4 +2333,16 @@ input {
 .room-actions-menu .room-action-menu-item { min-height: 44px; }
 @media (max-width: 767px) {
   .room-actions-menu { min-width: 170px; max-width: calc(100vw - 16px); }
+}
+
+/* Keep the Chat17 logo on the opening name screen the same compact size
+   as the old message icon. */
+.login-logo img {
+    width: 62px;
+    height: 62pxpx;
+    max-width: 62px;
+    max-height: 62px;
+    object-fit: contain;
+    display: block;
+    border-radius: 14px;
 }
