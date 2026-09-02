@@ -165,9 +165,25 @@ function getUsers(roomCode) {
     }
 
 
-    return Array.from(
-        room.users.values()
-    );
+    // Online status represents PEOPLE, not Socket.IO connections.
+    // A refresh, reconnect, or multiple tabs can create several sockets
+    // for the same person; those must count as one person.
+    const uniqueUsers = new Map();
+
+    for (const user of room.users.values()) {
+        const username = String(user?.username || "").trim();
+
+        if (!username || uniqueUsers.has(username)) {
+            continue;
+        }
+
+        uniqueUsers.set(username, {
+            id: user.id,
+            username
+        });
+    }
+
+    return Array.from(uniqueUsers.values());
 
 }
 

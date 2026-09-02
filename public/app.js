@@ -2431,10 +2431,19 @@ socket.on(
         }
 
 
+        // Count unique people, not duplicate socket connections.
+        const uniqueUsernames = new Set(
+            users
+                .map(user => String(user?.username || "").trim())
+                .filter(Boolean)
+        );
+
+        const onlineCount = uniqueUsernames.size;
+
         setStatus(
-            users.length === 1
+            onlineCount === 1
                 ? "1 person online"
-                : `${users.length} people online`
+                : `${onlineCount} people online`
         );
 
     }
