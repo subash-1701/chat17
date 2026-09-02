@@ -203,6 +203,31 @@ function emitUsers(roomCode) {
 
 
 /* ==========================================
+   UNREAD MESSAGE COUNT
+========================================== */
+
+function getUnreadCount(room, username) {
+    if (!room || !username) return 0;
+
+    const me = cleanName(username).toLowerCase();
+
+    return room.messages.filter(message => {
+        const sender = cleanName(
+            message.senderUsername || message.username
+        ).toLowerCase();
+
+        if (!sender || sender === me) return false;
+
+        const seenBy = Array.isArray(message.seenBy)
+            ? message.seenBy.map(name => cleanName(name).toLowerCase())
+            : [];
+
+        return !seenBy.includes(me);
+    }).length;
+}
+
+
+/* ==========================================
    CONNECTION
 ========================================== */
 
@@ -299,7 +324,10 @@ io.on(
                         room.owner,
 
                     messages:
-                        room.messages
+                        room.messages,
+
+                    unreadCount:
+                        getUnreadCount(room, username)
 
                 });
 
@@ -411,7 +439,10 @@ io.on(
                         room.owner,
 
                     messages:
-                        room.messages
+                        room.messages,
+
+                    unreadCount:
+                        getUnreadCount(room, username)
 
                 });
 
@@ -511,7 +542,10 @@ io.on(
                         room.owner,
 
                     messages:
-                        room.messages
+                        room.messages,
+
+                    unreadCount:
+                        getUnreadCount(room, username)
 
                 });
 
@@ -520,6 +554,41 @@ io.on(
                     roomCode
                 );
 
+            }
+        );
+
+
+        /* ==================================
+           SYNC UNREAD COUNTS AFTER RECONNECT
+        ================================== */
+
+        socket.on(
+            "sync-unread-counts",
+            (data, callback) => {
+
+                data = data || {};
+
+                const username = cleanName(data.username);
+                const roomCodes = Array.isArray(data.roomCodes)
+                    ? data.roomCodes.map(cleanRoomCode).filter(Boolean)
+                    : [];
+
+                const counts = {};
+
+                if (username) {
+                    for (const roomCode of roomCodes) {
+                        const room = rooms.get(roomCode);
+                        if (room) {
+                            counts[roomCode] = getUnreadCount(room, username);
+                        } else {
+                            counts[roomCode] = 0;
+                        }
+                    }
+                }
+
+                if (typeof callback === "function") {
+                    callback({ success: true, counts });
+                }
             }
         );
 
@@ -793,7 +862,10 @@ io.on(
                         new Date()
                             .toISOString(),
 
-                    replyTo
+                    replyTo,
+
+                    // Usernames of people who have opened/read this message.
+                    seenBy: []
 
                 };
 
@@ -823,6 +895,64 @@ io.on(
                     data
                 );
 
+            }
+        );
+
+
+        /* ==================================
+           MARK ROOM AS SEEN / READ
+        ================================== */
+
+        socket.on(
+            "mark-room-read",
+            (data, callback) => {
+
+                data = data || {};
+
+                const roomCode = cleanRoomCode(data.roomCode);
+                const username = cleanName(data.username);
+                const room = rooms.get(roomCode);
+
+                if (!room || !username) {
+                    if (typeof callback === "function") {
+                        callback({ success: false });
+                    }
+                    return;
+                }
+
+                let changed = false;
+
+                // Mark every message from another participant as seen by this user.
+                for (const message of room.messages) {
+                    const sender = cleanName(
+                        message.senderUsername || message.username
+                    );
+
+                    if (!sender || sender === username) continue;
+
+                    if (!Array.isArray(message.seenBy)) {
+                        message.seenBy = [];
+                    }
+
+                    const alreadySeen = message.seenBy.some(
+                        name => cleanName(name).toLowerCase() === username.toLowerCase()
+                    );
+
+                    if (!alreadySeen) {
+                        message.seenBy.push(username);
+                        changed = true;
+
+                        io.to(roomCode).emit("message-seen", {
+                            roomCode,
+                            messageId: message.id,
+                            seenBy: [...message.seenBy]
+                        });
+                    }
+                }
+
+                if (typeof callback === "function") {
+                    callback({ success: true, changed });
+                }
             }
         );
 

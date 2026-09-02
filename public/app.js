@@ -373,6 +373,10 @@ socket.on("connect", () => {
             currentRoom
         );
 
+        // Re-send the read state after reconnect so receipts continue to work
+        // even after a temporary disconnect.
+        setTimeout(() => markRoomMessagesSeen(currentRoom), 100);
+
     }
 
 });
@@ -538,6 +542,16 @@ function createRoom() {
             saveRoom(room);
 
             addChat(room);
+
+            if (typeof result.unreadCount === "number") {
+                const chat = chats.find(
+                    item => item.roomCode === String(result.roomCode).toUpperCase()
+                );
+                if (chat) {
+                    chat.unread = result.unreadCount;
+                    saveChats();
+                }
+            }
 
 
             closeModal();
@@ -1019,6 +1033,16 @@ function rejoinRoom(roomCode) {
                 owner: result.owner || ""
             });
 
+            if (typeof result.unreadCount === "number") {
+                const chat = chats.find(
+                    item => item.roomCode === String(result.roomCode).toUpperCase()
+                );
+                if (chat) {
+                    chat.unread = result.unreadCount;
+                    saveChats();
+                }
+            }
+
             openConversation(
                 result.roomCode,
                 result.roomName
@@ -1039,6 +1063,10 @@ function rejoinRoom(roomCode) {
                 );
 
             }
+
+            // The reconnected room is open only after history is rendered.
+            markChatRead(result.roomCode);
+            syncUnreadCounts();
 
         }
     );
@@ -2213,6 +2241,15 @@ socket.on(
                 data
             );
 
+            // Viewing the open conversation immediately creates a read receipt.
+            if (
+                String(data.senderUsername || data.username || "").trim().toLowerCase() !==
+                String(username || "").trim().toLowerCase()
+            ) {
+                markRoomMessagesSeen(roomCode);
+                markChatRead(roomCode);
+            }
+
         }
 
 
@@ -2346,6 +2383,18 @@ function addMessage(data) {
     }
 
     element.appendChild(text);
+
+    // Instagram-style read receipt: only show "Seen" on your own messages
+    // after another participant has actually opened the room.
+    if (isOwnMessage && Array.isArray(data.seenBy) && data.seenBy.some(
+        person => String(person).trim().toLowerCase() !== myName
+    )) {
+        const seen = document.createElement("span");
+        seen.className = "message-seen";
+        seen.textContent = "Seen";
+        element.appendChild(seen);
+    }
+
     element.appendChild(time);
 
     attachSwipeReply(element, data);
@@ -2359,6 +2408,50 @@ function addMessage(data) {
         messages.scrollHeight;
 
 }
+
+
+/* ==========================================
+   MESSAGE SEEN / READ RECEIPT
+========================================== */
+
+socket.on(
+    "message-seen",
+    data => {
+        if (!data || !data.messageId) return;
+
+        const messageElement = messages
+            ? messages.querySelector(
+                `[data-message-id="${CSS.escape(String(data.messageId))}"]`
+            )
+            : null;
+
+        if (!messageElement) return;
+
+        const myName = String(username || "").trim().toLowerCase();
+        const seenBy = Array.isArray(data.seenBy) ? data.seenBy : [];
+
+        if (!seenBy.some(
+            person => String(person).trim().toLowerCase() !== myName
+        )) {
+            return;
+        }
+
+        if (!messageElement.classList.contains("own")) return;
+
+        let seen = messageElement.querySelector(".message-seen");
+        if (!seen) {
+            seen = document.createElement("span");
+            seen.className = "message-seen";
+            seen.textContent = "Seen";
+            const time = messageElement.querySelector(".message-time");
+            if (time) {
+                messageElement.insertBefore(seen, time);
+            } else {
+                messageElement.appendChild(seen);
+            }
+        }
+    }
+);
 
 
 /* ==========================================
@@ -2596,6 +2689,25 @@ function updateChatFromMessage(data) {
 
 
 /* ==========================================
+   MARK SERVER MESSAGES AS SEEN
+========================================== */
+
+function markRoomMessagesSeen(roomCode) {
+    const code = String(roomCode || "").toUpperCase();
+
+    if (!code || !username || !socket.connected) return;
+
+    socket.emit(
+        "mark-room-read",
+        {
+            roomCode: code,
+            username
+        }
+    );
+}
+
+
+/* ==========================================
    MARK READ
 ========================================== */
 
@@ -2621,6 +2733,9 @@ function markChatRead(roomCode) {
 
     chat.unread = 0;
 
+    // Keep the local unread badge cleared and persist that state even if
+    // the other participant disconnects or this browser reconnects later.
+    markRoomMessagesSeen(code);
 
     saveChats();
 

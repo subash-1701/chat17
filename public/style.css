@@ -946,6 +946,15 @@ input {
     word-break: break-word;
 }
 
+.message-seen {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 9px;
+    font-weight: 600;
+    opacity: 0.75;
+    vertical-align: middle;
+}
+
 .message-time {
     display: block;
 
