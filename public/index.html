@@ -118,6 +118,10 @@
 
 <link rel="stylesheet" href="style.css">
 
+<!-- QR support: generate the room QR and scan QR codes from the camera -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+<script src="https://unpkg.com/html5-qrcode" defer></script>
+
 </head>
 
 <body>
@@ -709,6 +713,22 @@
 
             </div>
 
+            <button
+                id="scanRoomQrBtn"
+                class="scan-qr-button"
+                type="button"
+            >
+                ▣ Scan QR Code
+            </button>
+
+            <div id="qrScannerBox" class="qr-scanner-box hidden">
+                <div id="qrReader"></div>
+                <button id="stopQrScannerBtn" class="stop-qr-button" type="button">
+                    Close Scanner
+                </button>
+                <p id="qrScannerStatus" class="qr-scanner-status" aria-live="polite"></p>
+            </div>
+
         </div>
 
     </div>
@@ -752,6 +772,11 @@
             class="created-room-code"
         >
             ABC123
+        </div>
+
+        <div class="created-room-qr-wrap">
+            <div id="createdRoomQr" class="created-room-qr" aria-label="QR code to scan and connect"></div>
+            <span>Scan to connect</span>
         </div>
 
         <button
@@ -850,6 +875,12 @@
         <h2 id="roomCodeTitle">Room code</h2>
         <p class="delete-account-warning">Share this code with someone to let them join this room.</p>
         <div id="roomCodeValue" class="room-code-display">ABC123</div>
+
+        <div class="room-qr-wrap">
+            <div id="roomCodeQr" class="room-code-qr" aria-label="QR code for this room"></div>
+            <p>Scan this QR code to join the room.</p>
+        </div>
+
         <p id="roomCodeCopied" class="room-code-copied" aria-live="polite"></p>
         <div class="delete-account-actions">
             <button id="closeRoomCodeModalButton" class="delete-cancel-button" type="button">Close</button>

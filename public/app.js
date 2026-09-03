@@ -802,6 +802,139 @@ function showJoinBox() {
 
 
 /* ==========================================
+   QR ROOM SCANNER
+========================================== */
+
+let roomQrScanner = null;
+let roomQrScannerRunning = false;
+
+function extractRoomCodeFromQr(rawText) {
+    const text = String(rawText || "").trim();
+
+    // Current Chat17 QR format: the QR directly contains the 6-character room code.
+    const directCode = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (directCode.length === 6) return directCode;
+
+    // Also accept a Chat17 join URL if a QR was generated externally.
+    try {
+        const url = new URL(text);
+        const room =
+            url.searchParams.get("room") ||
+            url.searchParams.get("roomCode") ||
+            url.hash.replace(/^#/, "");
+
+        const code = String(room || "")
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "");
+
+        if (code.length === 6) return code;
+    } catch {
+        // Not a URL.
+    }
+
+    return "";
+}
+
+async function startRoomQrScanner() {
+    const scannerBox = document.getElementById("qrScannerBox");
+    const status = document.getElementById("qrScannerStatus");
+    const reader = document.getElementById("qrReader");
+
+    if (!scannerBox || !reader) return;
+
+    if (!window.Html5Qrcode) {
+        if (status) status.textContent = "QR scanner is still loading. Please try again.";
+        return;
+    }
+
+    if (roomQrScannerRunning) return;
+
+    scannerBox.classList.remove("hidden");
+    reader.innerHTML = "";
+    if (status) status.textContent = "Point your camera at a Chat17 room QR code.";
+
+    roomQrScanner = new Html5Qrcode("qrReader");
+
+    try {
+        await roomQrScanner.start(
+            { facingMode: "environment" },
+            {
+                fps: 10,
+                qrbox: { width: 220, height: 220 },
+                aspectRatio: 1
+            },
+            decodedText => {
+                const code = extractRoomCodeFromQr(decodedText);
+
+                if (!code) {
+                    if (status) status.textContent = "That QR code does not contain a valid Chat17 room code.";
+                    return;
+                }
+
+                const input = document.getElementById("roomCodeInput");
+                if (input) input.value = code;
+
+                if (status) status.textContent = `Room ${code} found. Joining…`;
+
+                stopRoomQrScanner().finally(() => {
+                    performJoin(code);
+                });
+            },
+            () => {
+                // Ignore normal camera frames that do not contain a QR code.
+            }
+        );
+
+        roomQrScannerRunning = true;
+    } catch (error) {
+        console.error("QR scanner error:", error);
+        if (status) {
+            status.textContent = "Camera access failed. Please allow camera permission and try again.";
+        }
+        roomQrScanner = null;
+        roomQrScannerRunning = false;
+    }
+}
+
+async function stopRoomQrScanner() {
+    const scannerBox = document.getElementById("qrScannerBox");
+    const reader = document.getElementById("qrReader");
+
+    if (roomQrScanner) {
+        try {
+            if (roomQrScannerRunning) {
+                await roomQrScanner.stop();
+            }
+        } catch (error) {
+            console.warn("Unable to stop QR scanner:", error);
+        }
+
+        try {
+            await roomQrScanner.clear();
+        } catch {
+            // Already cleared.
+        }
+    }
+
+    roomQrScanner = null;
+    roomQrScannerRunning = false;
+
+    if (reader) reader.innerHTML = "";
+    if (scannerBox) scannerBox.classList.add("hidden");
+}
+
+const scanRoomQrBtn = document.getElementById("scanRoomQrBtn");
+if (scanRoomQrBtn) {
+    scanRoomQrBtn.addEventListener("click", startRoomQrScanner);
+}
+
+const stopQrScannerBtn = document.getElementById("stopQrScannerBtn");
+if (stopQrScannerBtn) {
+    stopQrScannerBtn.addEventListener("click", stopRoomQrScanner);
+}
+
+
+/* ==========================================
    CONFIRM JOIN
 ========================================== */
 
@@ -2313,6 +2446,20 @@ function addMessage(data) {
         data.username ||
         "User";
 
+    // Instagram-style seen indicator: show two tiny orange commas
+    // on the same row as the sender name, aligned to the right.
+    const hasSeen = isOwnMessage && Array.isArray(data.seenBy) && data.seenBy.some(
+        person => String(person).trim().toLowerCase() !== myName
+    );
+    if (hasSeen) {
+        const seen = document.createElement("span");
+        seen.className = "message-seen";
+        seen.textContent = ",,";
+        seen.setAttribute("aria-label", "Seen");
+        seen.title = "Seen";
+        name.appendChild(seen);
+    }
+
 
     const text =
         document.createElement(
@@ -2384,17 +2531,6 @@ function addMessage(data) {
 
     element.appendChild(text);
 
-    // Instagram-style read receipt: only show "Seen" on your own messages
-    // after another participant has actually opened the room.
-    if (isOwnMessage && Array.isArray(data.seenBy) && data.seenBy.some(
-        person => String(person).trim().toLowerCase() !== myName
-    )) {
-        const seen = document.createElement("span");
-        seen.className = "message-seen";
-        seen.textContent = "Seen";
-        element.appendChild(seen);
-    }
-
     element.appendChild(time);
 
     attachSwipeReply(element, data);
@@ -2438,14 +2574,23 @@ socket.on(
 
         if (!messageElement.classList.contains("own")) return;
 
+        // Keep exactly one seen marker even if the same read event arrives
+        // more than once during reconnect/replay.
+        const seenMarkers = messageElement.querySelectorAll(".message-seen");
+        seenMarkers.forEach((marker, index) => {
+            if (index > 0) marker.remove();
+        });
+
         let seen = messageElement.querySelector(".message-seen");
         if (!seen) {
             seen = document.createElement("span");
             seen.className = "message-seen";
-            seen.textContent = "Seen";
-            const time = messageElement.querySelector(".message-time");
-            if (time) {
-                messageElement.insertBefore(seen, time);
+            seen.textContent = ",,";
+            seen.setAttribute("aria-label", "Seen");
+            seen.title = "Seen";
+            const name = messageElement.querySelector(".message-name");
+            if (name) {
+                name.appendChild(seen);
             } else {
                 messageElement.appendChild(seen);
             }
@@ -2927,6 +3072,8 @@ function openModal() {
 
 function closeModal() {
 
+    stopRoomQrScanner();
+
     const modal =
         document.getElementById(
             "modal"
@@ -3023,9 +3170,30 @@ function openRoomCodeModal(code) {
     const modal = document.getElementById("roomCodeModal");
     const value = document.getElementById("roomCodeValue");
     const copied = document.getElementById("roomCodeCopied");
+    const qr = document.getElementById("roomCodeQr");
+    const cleanCode = String(code || "").trim().toUpperCase();
+
     if (!modal) return;
-    if (value) value.textContent = code || "—";
+
+    if (value) value.textContent = cleanCode || "—";
     if (copied) copied.textContent = "";
+
+    if (qr) {
+        qr.innerHTML = "";
+
+        if (cleanCode && window.QRCode) {
+            new QRCode(qr, {
+                text: cleanCode,
+                width: 190,
+                height: 190,
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        } else if (cleanCode) {
+            qr.textContent = "QR is loading…";
+            setTimeout(() => openRoomCodeModal(cleanCode), 300);
+        }
+    }
+
     modal.classList.remove("hidden");
 }
 
@@ -3078,6 +3246,23 @@ function showRoomCodePopup(code) {
 
     }
 
+    // Generate a compact QR code immediately in the Room Created popup.
+    const qr = document.getElementById("createdRoomQr");
+    const cleanCode = String(code || "").trim().toUpperCase();
+    if (qr) {
+        qr.innerHTML = "";
+        if (cleanCode && window.QRCode) {
+            new QRCode(qr, {
+                text: cleanCode,
+                width: 112,
+                height: 112,
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        } else if (cleanCode) {
+            qr.textContent = "QR loading…";
+            setTimeout(() => showRoomCodePopup(cleanCode), 300);
+        }
+    }
 
     if (popup) {
 

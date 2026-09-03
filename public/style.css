@@ -923,14 +923,15 @@ input {
 }
 
 .message-name {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
     font-size: 9px;
-
     font-weight: bold;
-
     letter-spacing: .2px;
-
     color: var(--accent-dark);
-
     margin-bottom: 4px;
 }
 
@@ -948,11 +949,16 @@ input {
 
 .message-seen {
     display: inline-block;
-    margin-left: 8px;
-    font-size: 9px;
-    font-weight: 600;
-    opacity: 0.75;
+    margin-left: auto;
+    flex: 0 0 auto;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -1px;
+    color: var(--accent);
+    opacity: 1;
     vertical-align: middle;
+    transform: translateY(-1px);
 }
 
 .message-time {
@@ -1692,6 +1698,38 @@ input {
     margin-bottom: 12px;
 }
 
+.created-room-qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    margin: 10px 0 14px;
+}
+
+.created-room-qr {
+    width: 132px;
+    height: 132px;
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 12px;
+}
+
+.created-room-qr img,
+.created-room-qr canvas {
+    display: block;
+    width: 112px !important;
+    height: 112px !important;
+}
+
+.created-room-qr-wrap span {
+    font-size: 11px;
+    color: var(--muted);
+}
+
 .copy-button,
 .continue-button {
     width: 100%;
@@ -2354,4 +2392,99 @@ input {
     object-fit: contain;
     display: block;
     border-radius: 14px;
+}
+
+
+/* QR room sharing and camera scanner */
+.room-code-qr {
+    width: 190px;
+    min-height: 190px;
+    margin: 14px auto 8px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 14px;
+    box-sizing: border-box;
+}
+
+.room-code-qr img,
+.room-code-qr canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+.room-qr-wrap {
+    text-align: center;
+}
+
+.room-qr-wrap p {
+    margin: 4px 0 10px;
+    font-size: 12px;
+    opacity: .72;
+}
+
+.scan-qr-button {
+    width: 100%;
+    margin-top: 10px;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--background);
+    color: var(--text);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.qr-scanner-box {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--background);
+    overflow: hidden;
+}
+
+#qrReader {
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+}
+
+#qrReader video {
+    border-radius: 12px;
+}
+
+#qrReader__scan_region {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.stop-qr-button {
+    width: 100%;
+    margin-top: 10px;
+    min-height: 42px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.qr-scanner-status {
+    min-height: 18px;
+    margin: 8px 2px 0;
+    text-align: center;
+    font-size: 12px;
+    opacity: .78;
+}
+
+@media (max-width: 767px) {
+    .room-code-qr {
+        width: 175px;
+        min-height: 175px;
+    }
 }
