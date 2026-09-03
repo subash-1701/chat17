@@ -528,6 +528,9 @@ if (createModalBtn) {
    CREATE ROOM
 ========================================== */
 
+let pendingCreatedRoom = null;
+let pendingCreatedMessages = [];
+
 function createRoom() {
 
     if (!username) {
@@ -603,32 +606,21 @@ function createRoom() {
 
             closeModal();
 
+            // Keep the newly created room on the success screen.
+            // Do NOT open the conversation or focus the message input yet;
+            // this prevents the mobile keyboard from appearing.
+            pendingCreatedRoom = room;
+            pendingCreatedMessages = Array.isArray(result.messages)
+                ? result.messages
+                : [];
 
-            showRoomCodePopup(
-                room.code
-            );
-
-
-            openConversation(
-                room.code,
-                room.name
-            );
-
-
-            messages.innerHTML = "";
-
-
-            if (
-                Array.isArray(
-                    result.messages
-                )
-            ) {
-
-                result.messages.forEach(
-                    addMessage
-                );
-
+            // Explicitly remove focus from the create/join form before
+            // displaying the Room Created popup.
+            if (document.activeElement && typeof document.activeElement.blur === "function") {
+                document.activeElement.blur();
             }
+
+            showRoomCodePopup(room.code);
 
         }
     );
@@ -3342,6 +3334,9 @@ if (closeRoomPopup) {
                     "hidden"
                 );
 
+            // Closing the popup must NOT enter the chat.
+            // The user must explicitly press Continue Chat.
+
         }
     );
 
@@ -3367,6 +3362,18 @@ if (continueRoomBtn) {
                 .classList.add(
                     "hidden"
                 );
+
+            // Continue Chat is the only action that enters the new room.
+            if (pendingCreatedRoom) {
+                const room = pendingCreatedRoom;
+                const roomMessages = pendingCreatedMessages;
+                pendingCreatedRoom = null;
+                pendingCreatedMessages = [];
+
+                openConversation(room.code, room.name);
+                messages.innerHTML = "";
+                roomMessages.forEach(addMessage);
+            }
 
         }
     );
