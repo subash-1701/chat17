@@ -356,6 +356,49 @@ function updateUserUI() {
 
 
 /* ==========================================
+   SYNC UNREAD COUNTS
+   Re-check every saved room whenever the browser
+   reconnects, so badges survive disconnects/reloads.
+========================================== */
+function syncUnreadCounts() {
+    if (!socket.connected || !username) return;
+
+    const roomCodes = [...new Set(
+        chats
+            .map(chat => String(chat.roomCode || "").toUpperCase())
+            .filter(Boolean)
+    )];
+
+    if (!roomCodes.length) return;
+
+    socket.emit(
+        "sync-unread-counts",
+        { username, roomCodes },
+        result => {
+            if (!result || !result.success || !result.counts) return;
+
+            let changed = false;
+
+            chats.forEach(chat => {
+                const code = String(chat.roomCode || "").toUpperCase();
+                if (!Object.prototype.hasOwnProperty.call(result.counts, code)) return;
+
+                const count = Math.max(0, Number(result.counts[code]) || 0);
+                if (Number(chat.unread || 0) !== count) {
+                    chat.unread = count;
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                saveChats();
+                renderChats();
+            }
+        }
+    );
+}
+
+/* ==========================================
    SOCKET CONNECTION
 ========================================== */
 
@@ -366,6 +409,10 @@ socket.on("connect", () => {
         socket.id
     );
 
+
+    // First refresh all saved chat badges from the server. This is what
+    // restores unread counts after a disconnect or reopening the website.
+    syncUnreadCounts();
 
     if (currentRoom) {
 
