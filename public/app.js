@@ -2324,26 +2324,68 @@ function clearReply() {
 
 if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
 
+function requestDeleteMessage(messageData, element) {
+    if (!messageData?.id || !currentRoom) return;
+
+    const sender = String(messageData.senderUsername || messageData.username || "").trim().toLowerCase();
+    const me = String(username || "").trim().toLowerCase();
+    if (!sender || sender !== me) return;
+
+    socket.emit("delete-message", {
+        roomCode: currentRoom,
+        messageId: String(messageData.id)
+    }, result => {
+        if (!result?.success) return;
+        if (element?.isConnected) element.remove();
+    });
+}
+
 function attachSwipeReply(element, messageData) {
     let startX = 0;
     let startY = 0;
     let swiping = false;
+    let holdTimer = null;
+    let holdTriggered = false;
+
+    const clearHold = () => {
+        if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+        }
+    };
 
     element.addEventListener("pointerdown", event => {
         if (event.pointerType === "mouse" && event.button !== 0) return;
         startX = event.clientX;
         startY = event.clientY;
         swiping = false;
+        holdTriggered = false;
         swipeState = { element, startX, startY };
+        clearHold();
+
+        // Hold a message for 3 seconds to delete your own message.
+        const sender = String(messageData.senderUsername || messageData.username || "").trim().toLowerCase();
+        const me = String(username || "").trim().toLowerCase();
+        if (sender && sender === me) {
+            holdTimer = setTimeout(() => {
+                holdTriggered = true;
+                element.classList.remove("swiping", "reply-ready");
+                element.style.transform = "";
+                swipeState = null;
+                requestDeleteMessage(messageData, element);
+            }, 3000);
+        }
+
         try { element.setPointerCapture(event.pointerId); } catch (_) {}
     });
 
     element.addEventListener("pointermove", event => {
-        if (!swipeState || swipeState.element !== element) return;
+        if (!swipeState || swipeState.element !== element || holdTriggered) return;
 
         const dx = event.clientX - startX;
         const dy = event.clientY - startY;
 
+        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clearHold();
         if (!swiping && Math.abs(dx) < 8) return;
 
         if (!swiping && Math.abs(dy) > Math.abs(dx)) {
@@ -2352,34 +2394,50 @@ function attachSwipeReply(element, messageData) {
         }
 
         swiping = true;
+        // Left swipe is delete; right swipe keeps the existing reply action.
         const direction = dx >= 0 ? 1 : -1;
-        const distance = Math.min(Math.abs(dx), 82);
+        const distance = Math.min(Math.abs(dx), 110);
 
         element.style.transform = `translateX(${direction * distance}px)`;
         element.classList.add("swiping");
-        element.classList.toggle("reply-ready", distance >= 60);
+        element.classList.toggle("reply-ready", direction > 0 && distance >= 60);
+        element.classList.toggle("delete-ready", direction < 0 && distance >= 60);
     });
 
     const finishSwipe = event => {
+        clearHold();
         if (!swipeState || swipeState.element !== element) return;
 
         const dx = event.clientX - startX;
         const dy = event.clientY - startY;
+        const shouldDelete =
+            swiping &&
+            dx <= -60 &&
+            Math.abs(dx) > Math.abs(dy);
         const shouldReply =
             swiping &&
-            Math.abs(dx) >= 60 &&
+            dx >= 60 &&
             Math.abs(dx) > Math.abs(dy);
 
         element.style.transform = "";
-        element.classList.remove("swiping", "reply-ready");
+        element.classList.remove("swiping", "reply-ready", "delete-ready");
         swipeState = null;
 
-        if (shouldReply) setReply(messageData);
+        if (shouldDelete) requestDeleteMessage(messageData, element);
+        else if (shouldReply) setReply(messageData);
         swiping = false;
     };
 
     element.addEventListener("pointerup", finishSwipe);
-    element.addEventListener("pointercancel", finishSwipe);
+    element.addEventListener("pointercancel", () => {
+        clearHold();
+        if (swipeState?.element === element) {
+            element.style.transform = "";
+            element.classList.remove("swiping", "reply-ready", "delete-ready");
+            swipeState = null;
+        }
+        swiping = false;
+    });
 }
 
 
@@ -2636,6 +2694,13 @@ socket.on(
         }
     }
 );
+
+
+socket.on("message-deleted", data => {
+    if (!data?.messageId || !messages) return;
+    const element = messages.querySelector(`[data-message-id="${CSS.escape(String(data.messageId))}"]`);
+    if (element) element.remove();
+});
 
 
 /* ==========================================
@@ -2987,23 +3052,42 @@ function syncMobileKeyboardHeight() {
     if (window.innerWidth > 767) return;
 
     const viewport = window.visualViewport;
-    if (!viewport) return;
+    if (!viewport || !messagePanel) return;
 
-    const keyboardOffset = Math.max(
-        0,
-        window.innerHeight - viewport.height - viewport.offsetTop
-    );
+    // Pin the chat to the exact visible visual viewport. Do not use the
+    // document/body height here: on Android the keyboard can resize the
+    // visual viewport while the layout viewport remains taller, which leaves
+    // a strip of the page visible above the keyboard.
+    const top = Math.max(0, viewport.offsetTop || 0);
+    const height = Math.max(0, viewport.height || window.innerHeight);
+    const layoutHeight = Math.max(0, window.innerHeight || height);
+    const keyboardOpen = layoutHeight - height > 80;
 
-    document.documentElement.style.setProperty(
-        "--mobile-keyboard-offset",
-        `${keyboardOffset}px`
-    );
+    messagePanel.style.top = `${top}px`;
+    messagePanel.style.bottom = "auto";
+    messagePanel.style.height = `${height}px`;
+    messagePanel.classList.toggle("keyboard-open", keyboardOpen);
+
+    // Prevent the underlying document from participating in the gesture.
+    // Only #messages should be scrollable while the conversation is open.
+    document.documentElement.style.overscrollBehavior = "none";
+    document.body.style.overscrollBehavior = "none";
 
     if (currentRoom) {
         requestAnimationFrame(() => {
             scrollMessagesToBottom();
         });
     }
+}
+
+function resetMobileViewportStyles() {
+    if (!messagePanel) return;
+    messagePanel.style.top = "";
+    messagePanel.style.bottom = "";
+    messagePanel.style.height = "";
+    messagePanel.classList.remove("keyboard-open");
+    document.documentElement.style.overscrollBehavior = "";
+    document.body.style.overscrollBehavior = "";
 }
 
 function scrollMessagesToBottom() {
@@ -3018,7 +3102,7 @@ if (window.visualViewport) {
 
 window.addEventListener("resize", () => {
     if (window.innerWidth > 767) {
-        document.documentElement.style.removeProperty("--mobile-keyboard-offset");
+        resetMobileViewportStyles();
     } else {
         syncMobileKeyboardHeight();
     }
@@ -3057,7 +3141,7 @@ if (mobileBackBtn) {
 
             // Keep the panel hidden until another chat is selected.
             messagePanel.classList.add("hidden");
-            document.documentElement.style.removeProperty("--mobile-keyboard-offset");
+            resetMobileViewportStyles();
 
             currentRoom = "";
 

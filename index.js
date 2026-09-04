@@ -900,6 +900,52 @@ io.on(
 
 
         /* ==================================
+           DELETE MESSAGE
+           Only the message author can delete it.
+        ================================== */
+
+        socket.on(
+            "delete-message",
+            (data, callback) => {
+                data = data || {};
+
+                const roomCode = cleanRoomCode(data.roomCode || socket.roomCode);
+                const messageId = String(data.messageId || "").trim();
+                const room = rooms.get(roomCode);
+
+                if (!room || !messageId || socket.roomCode !== roomCode) {
+                    if (typeof callback === "function") callback({ success: false, message: "Message not found." });
+                    return;
+                }
+
+                const index = room.messages.findIndex(message => String(message.id) === messageId);
+                if (index === -1) {
+                    if (typeof callback === "function") callback({ success: false, message: "Message not found." });
+                    return;
+                }
+
+                const message = room.messages[index];
+                const sender = cleanName(message.senderUsername || message.username).toLowerCase();
+                const requester = cleanName(socket.username).toLowerCase();
+
+                if (!sender || sender !== requester) {
+                    if (typeof callback === "function") callback({ success: false, message: "You can only delete your own messages." });
+                    return;
+                }
+
+                room.messages.splice(index, 1);
+
+                io.to(roomCode).emit("message-deleted", {
+                    roomCode,
+                    messageId
+                });
+
+                if (typeof callback === "function") callback({ success: true, messageId });
+            }
+        );
+
+
+        /* ==================================
            MARK ROOM AS SEEN / READ
         ================================== */
 

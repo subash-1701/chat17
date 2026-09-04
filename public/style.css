@@ -999,6 +999,13 @@ input {
 }
 
 .message.swiping { transition: none; }
+.message { touch-action: pan-y; user-select: none; }
+.message-text, .reply-quote { user-select: text; }
+
+ .message.delete-ready {
+    box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.35);
+    opacity: 0.9;
+}
 
 .message.reply-ready {
     box-shadow: 0 0 0 2px rgba(15, 110, 93, .16), var(--shadow-sm);
@@ -1776,6 +1783,8 @@ input {
     body {
         overflow: hidden;
         min-height: 100dvh;
+        height: 100dvh;
+        background: var(--white);
     }
 
     .app {
@@ -1806,7 +1815,7 @@ input {
         left: 0;
         right: 0;
         top: 0;
-        bottom: var(--mobile-keyboard-offset, 0px);
+        bottom: 0;
 
         z-index: 200;
 
@@ -1818,9 +1827,9 @@ input {
 
         background: var(--white);
 
-        /* Resize with Android's visual viewport so the composer rises
-           above the software keyboard instead of being covered by it. */
-        transition: bottom .08s linear;
+        /* JS pins this panel to the exact visible visual viewport.
+           The chat therefore covers the entire screen with no background strip. */
+        overflow: hidden;
     }
 
     /* The hidden class is the single source of truth on mobile.
@@ -1845,10 +1854,22 @@ input {
 
     .message-form {
         min-height: 64px;
-        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+        padding: 8px 10px;
         flex-shrink: 0;
         position: relative;
         z-index: 2;
+        /* Never reserve the device safe-area inside the keyboard-visible
+           chat. Android/Chrome can report that inset while the keyboard is
+           open, which creates the small strip of page background above it. */
+    }
+
+    .message-panel.keyboard-open .message-form {
+        padding-bottom: 8px;
+    }
+
+    .message-panel.keyboard-open,
+    .message-panel.keyboard-open .conversation {
+        overflow: hidden;
     }
 
     .message-form input {
