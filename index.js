@@ -226,6 +226,22 @@ function getUnreadCount(room, username) {
     }).length;
 }
 
+function pushUnreadCount(roomCode, username) {
+    const room = rooms.get(roomCode);
+    const target = cleanName(username).toLowerCase();
+    if (!room || !target) return;
+
+    const count = getUnreadCount(room, username);
+
+    for (const connectedSocket of io.sockets.sockets.values()) {
+        const socketUser = cleanName(connectedSocket.username).toLowerCase();
+        if (socketUser !== target) continue;
+        if (connectedSocket.roomCode === roomCode) continue;
+
+        connectedSocket.emit("unread-count-update", { roomCode, count });
+    }
+}
+
 
 /* ==========================================
    CONNECTION
@@ -895,6 +911,20 @@ io.on(
                     data
                 );
 
+                // Immediately push the authoritative badge count to other
+                // connected tabs/devices for the room participants.
+                const senderName = cleanName(socket.username).toLowerCase();
+                const participantNames = new Set(
+                    [...room.users.values()]
+                        .map(user => cleanName(user?.username))
+                        .filter(Boolean)
+                );
+                for (const participant of participantNames) {
+                    if (participant.toLowerCase() !== senderName) {
+                        pushUnreadCount(socket.roomCode, participant);
+                    }
+                }
+
             }
         );
 
@@ -995,6 +1025,9 @@ io.on(
                         });
                     }
                 }
+
+                // Sync the badge immediately across any other tabs.
+                pushUnreadCount(roomCode, username);
 
                 if (typeof callback === "function") {
                     callback({ success: true, changed });

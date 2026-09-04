@@ -356,6 +356,21 @@ function updateUserUI() {
 
 
 /* ==========================================
+   FAST UNREAD COUNT UPDATES
+========================================== */
+socket.on("unread-count-update", data => {
+    if (!data || !data.roomCode) return;
+    const code = String(data.roomCode).toUpperCase();
+    const count = Math.max(0, Number(data.count) || 0);
+    const chat = chats.find(item => item.roomCode === code);
+    if (!chat || Number(chat.unread || 0) === count) return;
+    chat.unread = count;
+    saveChats();
+    renderChats();
+    updateUserUI();
+});
+
+/* ==========================================
    SYNC UNREAD COUNTS
    Re-check every saved room whenever the browser
    reconnects, so badges survive disconnects/reloads.
@@ -397,6 +412,15 @@ function syncUnreadCounts() {
         }
     );
 }
+
+// Re-sync as soon as the app/tab becomes active again.
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncUnreadCounts();
+});
+window.addEventListener("pageshow", () => syncUnreadCounts());
+window.addEventListener("online", () => {
+    if (socket.connected) syncUnreadCounts();
+});
 
 /* ==========================================
    SOCKET CONNECTION
@@ -1581,7 +1605,12 @@ function renderChats() {
                     unread:
                         Number(
                             chat.unread || 0
-                        )
+                        ),
+
+                    _unreadMessageIds:
+                        Array.isArray(chat._unreadMessageIds)
+                            ? chat._unreadMessageIds.slice(-250)
+                            : []
 
                 })
             );
@@ -2907,12 +2936,18 @@ function updateChatFromMessage(data) {
         roomCode !== currentRoom &&
         data.senderId !== socket.id
     ) {
+        const messageId = String(data.id || "");
+        const countedIds = Array.isArray(chat._unreadMessageIds)
+            ? chat._unreadMessageIds
+            : [];
 
-        chat.unread =
-            Number(
-                chat.unread || 0
-            ) + 1;
-
+        if (!messageId || !countedIds.includes(messageId)) {
+            chat.unread = Number(chat.unread || 0) + 1;
+            if (messageId) {
+                countedIds.push(messageId);
+                chat._unreadMessageIds = countedIds.slice(-250);
+            }
+        }
     }
 
 
