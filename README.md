@@ -11,7 +11,6 @@ Chat17 allows users to create or join chat rooms using a unique room code and co
 - 🔑 Create and join rooms using room codes
 - 📱 Responsive mobile design
 - 💻 Desktop-friendly interface
-- 🌙 Dark mode
 - ☀️ Light mode
 - 🔄 Automatic reconnection and room rejoin
 - 🔔 Unread message count
