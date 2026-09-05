@@ -134,27 +134,6 @@ This makes it easier for another user to join a room without manually entering t
 
 ---
 
-🗂️ Project Structure
-
-Chat17/
-├── index.js
-└── public/
-    ├── index.html
-    ├── app.js
-    ├── style.css
-    └── chat17-logo.png
-
-📁 File Description
-
-File| Description
-"index.js"| Node.js server and Socket.IO backend
-"public/index.html"| Main Chat17 user interface
-"public/app.js"| Client-side chat functionality
-"public/style.css"| UI design and responsive styling
-"public/chat17-logo.png"| Chat17 application logo
-
----
-
 🛠️ Technologies Used
 
 Chat17 is built using the following technologies:
