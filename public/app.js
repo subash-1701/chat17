@@ -3622,10 +3622,18 @@ document
                         "active"
                     );
 
+                    // Move the single liquid-glass highlight smoothly between tabs.
+                    const bottomNav = document.querySelector(".bottom-nav");
+                    if (bottomNav) {
+                        const navButtons = Array.from(
+                            bottomNav.querySelectorAll(".nav-button")
+                        );
+                        const index = Math.max(0, navButtons.indexOf(button));
+                        bottomNav.style.setProperty("--nav-index", index);
+                    }
 
-                    showMobilePage(
-                        page
-                    );
+                    // Give the selected mobile page a subtle glass-style entrance.
+                    showMobilePage(page);
 
                 }
             );
@@ -3642,6 +3650,16 @@ function showMobilePage(page) {
 
         return;
 
+    }
+
+    const bottomNav = document.querySelector(".bottom-nav");
+    if (bottomNav) {
+        const navButtons = Array.from(bottomNav.querySelectorAll(".nav-button"));
+        const target = navButtons.find(btn => btn.dataset.page === page);
+        if (target) {
+            navButtons.forEach(btn => btn.classList.toggle("active", btn === target));
+            bottomNav.style.setProperty("--nav-index", Math.max(0, navButtons.indexOf(target)));
+        }
     }
 
 
