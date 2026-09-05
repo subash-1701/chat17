@@ -105,17 +105,21 @@ Rooms can be shared using QR codes, making it easier for another user to join wi
 🗂️ Project Structure
 
 Chat17/
-│
-├── index.js                 # Node.js server and Socket.IO backend
-├── package.json             # Project dependencies and configuration
-├── package-lock.json        # Locked dependency versions
-│
+├── index.js
 └── public/
-    │
-    ├── index.html           # Main application interface
-    ├── app.js               # Client-side application logic
-    ├── style.css            # Application styling and responsive UI
-    └── chat17-logo.png      # Chat17 application logo
+    ├── index.html
+    ├── app.js
+    ├── style.css
+    └── chat17-logo.png
+
+📁 File Description
+
+File| Description
+"index.js"| Node.js server and Socket.IO backend
+"public/index.html"| Main Chat17 user interface
+"public/app.js"| Client-side chat functionality
+"public/style.css"| UI design and responsive styling
+"public/chat17-logo.png"| Chat17 application logo
 
 🛠️ Technologies
 
