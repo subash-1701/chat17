@@ -50,7 +50,7 @@ Chat17/
 ### 1. Clone the project
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/subash-1701/chat17.git
 cd chat17
 ```
 
