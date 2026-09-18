@@ -1,0 +1,25 @@
+{
+  "name": "chat17",
+  "version": "1.0.0",
+  "description": "Chat17 real-time chat application",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "chat",
+    "realtime",
+    "socket.io",
+    "express"
+  ],
+  "author": "Subash S",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "socket.io": "^4.8.1"
+  }
+}

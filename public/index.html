@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head> <meta charset="UTF-8">
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+>
+
+<!-- Primary SEO -->
+<title>Chat17 – Connect and Chat in Private Rooms</title>
+
+<link rel="manifest" href="./manifest.json">
+
+<meta name="google-site-verification" content="Zly5CsaFd5wi15fnNBAhJ-g7uzpI90_WGCx828UALH4" />
+
+<meta
+    name="description"
+    content="Chat17 is a simple real-time chat platform where you can create or join rooms using a room code and connect with others."
+>
+
+<meta
+    name="keywords"
+    content="Chat17, online chat, chat rooms, private chat, real-time messaging, room chat, messaging app"
+>
+
+<meta name="author" content="Subash S">
+
+<meta
+    name="robots"
+    content="index, follow, max-image-preview:large"
+>
+
+<meta name="theme-color" content="#6c5ce7">
+
+<!-- Canonical URL -->
+<link
+    rel="canonical"
+    href="https://chat17-app.vercel.app/"
+>
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+
+<meta
+    property="og:title"
+    content="Chat17 – Connect and Chat in Private Rooms"
+>
+
+<meta
+    property="og:description"
+    content="Create or join a Chat17 room using a room code and start chatting in real time."
+>
+
+<meta
+    property="og:url"
+    content="https://chat17-app.vercel.app"
+>
+
+<meta
+    property="og:site_name"
+    content="Chat17"
+>
+
+<meta
+    property="og:image:alt"
+    content="Chat17 real-time chat platform"
+>
+
+<!-- Twitter / X -->
+<meta
+    name="twitter:card"
+    content="summary_large_image"
+>
+
+<meta
+    name="twitter:title"
+    content="Chat17 – Connect and Chat in Private Rooms"
+>
+
+<meta
+    name="twitter:description"
+    content="Create or join a Chat17 room using a room code and start chatting in real time."
+>
+
+<!-- Icons -->
+<link
+    rel="icon"
+    href="./images/chat17-logo.png"
+>
+
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+>
+
+<link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+>
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Chat17",
+    "url": "https://chat17-app.vercel.app/",
+    "description": "A real-time chat platform for creating and joining chat rooms using room codes.",
+    "applicationCategory": "CommunicationApplication",
+    "operatingSystem": "Web",
+    "author": {
+        "@type": "Person",
+        "name": "Subash S"
+    }
+}
+</script>
+
+<link rel="stylesheet" href="style.css">
+
+<!-- QR support: generate the room QR and scan QR codes from the camera -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+<script src="https://unpkg.com/html5-qrcode" defer></script>
+
+</head>
+
+<body>
+
+<!-- =========================
+     LOGIN
+========================= -->
+
+<div id="loginScreen" class="login-screen">
+
+    <div class="login-card">
+
+        <div class="login-logo">
+            <img src="./images/chat17-logo.png" alt="Chat17 logo">
+        </div>
+
+        <h1>Welcome to Chat17</h1>
+
+        <p>
+            Connect with people using a room code.
+        </p>
+
+        <input
+            id="loginName"
+            type="text"
+            placeholder="Enter your name"
+            maxlength="20"
+            autocomplete="off"
+        >
+
+        <button id="startBtn">
+            Start Chatting
+        </button>
+
+        <div id="loginError"></div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     APP
+========================= -->
+
+<div id="app" class="app hidden">
+
+
+    <!-- =====================
+         LEFT SIDEBAR
+    ====================== -->
+
+    <aside id="sidebar" class="sidebar">
+
+        <!-- Sidebar Header -->
+
+        <header class="sidebar-header">
+
+            <div>
+                <span class="small-label">
+                    Messenger
+                </span>
+
+                <h1>Chat17</h1>
+            </div>
+
+            <button
+                id="addChatBtn"
+                class="icon-button"
+                title="New conversation"
+            >
+                +
+            </button>
+
+        </header>
+
+
+        <!-- Search -->
+
+        <div class="search-box">
+
+            <span>⌕</span>
+
+            <input
+                id="searchInput"
+                type="text"
+                placeholder="Search chats"
+                autocomplete="off"
+            >
+
+        </div>
+
+
+        <!-- Chat List -->
+
+        <div
+            id="chatList"
+            class="chat-list"
+        >
+
+            <div class="empty-chat">
+                <div>💬</div>
+
+                <p>
+                    No conversations yet
+                </p>
+
+                <small>
+                    Create or join a room to start chatting.
+                </small>
+            </div>
+
+        </div>
+
+
+        <!-- Desktop Profile -->
+
+        <div class="sidebar-user">
+
+            <div
+                id="sidebarAvatar"
+                class="user-avatar"
+            >
+                U
+            </div>
+
+            <div class="sidebar-user-info">
+
+                <strong id="sidebarUsername">
+                    User
+                </strong>
+
+                <small>
+                    Available
+                </small>
+
+            </div>
+
+            <button
+                id="sidebarProfileBtn"
+                class="more-button"
+                title="Profile"
+            >
+                ⋮
+            </button>
+
+            <button
+                id="desktopLogoutBtn"
+                class="desktop-logout-button"
+                type="button"
+            >
+                Logout
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================
+         RIGHT MESSAGE PANEL
+    ====================== -->
+
+    <main
+        id="messagePanel"
+        class="message-panel hidden"
+    >
+
+        <!-- Empty State -->
+
+        <div
+            id="welcomePanel"
+            class="welcome-panel"
+        >
+
+            <div class="welcome-icon">
+                💬
+            </div>
+
+            <h2>
+                Chat17
+            </h2>
+
+            <p>
+                Select a conversation to start messaging.
+            </p>
+
+            <button id="welcomeCreateBtn">
+                Create a Room
+            </button>
+
+        </div>
+
+
+        <!-- Conversation -->
+
+        <div
+            id="conversation"
+            class="conversation hidden"
+        >
+
+            <!-- Conversation Header -->
+
+            <header class="conversation-header">
+
+                <button
+                    id="mobileBackBtn"
+                    class="mobile-back"
+                >
+                    ←
+                </button>
+
+                <div
+                    id="conversationAvatar"
+                    class="conversation-avatar"
+                >
+                    R
+                </div>
+
+                <div class="conversation-info">
+
+                    <strong id="conversationName">
+                        Room
+                    </strong>
+
+                    <small id="conversationStatus" aria-live="polite">
+                        Offline
+                    </small>
+
+                </div>
+
+                <button
+                    id="roomInfoBtn"
+                    class="conversation-more"
+                >
+                    ⋮
+                </button>
+
+            </header>
+
+
+            <!-- Messages -->
+
+            <div
+                id="messages"
+                class="messages"
+            >
+            </div>
+
+
+            <!-- Reply preview -->
+            <div id="replyBar" class="reply-bar hidden" aria-hidden="true">
+                <div class="reply-indicator"></div>
+                <div class="reply-content">
+                    <strong id="replyName">User</strong>
+                    <span id="replyText"></span>
+                </div>
+                <button id="cancelReplyBtn" type="button" class="reply-close" aria-label="Cancel reply">×</button>
+            </div>
+
+            <!-- Message Input -->
+
+            <form
+                id="messageForm"
+                class="message-form"
+            >
+
+                <input
+                    id="messageInput"
+                    type="text"
+                    placeholder="Type a message..."
+                    maxlength="500"
+                    autocomplete="off"
+                >
+
+                <button
+                    type="submit"
+                    class="send-button"
+                >
+                    ➤
+                </button>
+
+            </form>
+
+        </div>
+
+    </main>
+
+
+    <!-- =====================
+         MOBILE NAVIGATION
+    ====================== -->
+
+    <nav class="bottom-nav" style="--nav-index: 0;">
+
+        <span class="nav-liquid-indicator" aria-hidden="true"></span>
+
+        <button
+            class="nav-button active"
+            data-page="chat"
+        >
+
+            <span>💬</span>
+
+            <small>
+                Chat
+            </small>
+
+        </button>
+
+
+        <button
+            class="nav-button"
+            data-page="home"
+        >
+
+            <span>⌂</span>
+
+            <small>
+                Home
+            </small>
+
+        </button>
+
+
+        <button
+            class="nav-button"
+            data-page="profile"
+        >
+
+            <span>♙</span>
+
+            <small>
+                Profile
+            </small>
+
+        </button>
+
+    </nav>
+
+
+    <!-- =====================
+         MOBILE HOME
+    ====================== -->
+
+    <section
+        id="homePage"
+        class="mobile-page hidden"
+    >
+
+        <header class="mobile-page-header">
+
+            <span>Chat17</span>
+
+            <h1>Home</h1>
+
+        </header>
+
+
+        <div class="home-card">
+
+            <div class="home-icon">
+                💬
+            </div>
+
+            <h2>
+                Start a conversation
+            </h2>
+
+            <p>
+                Create a room or join an existing
+                room using a room code.
+            </p>
+
+            <button id="homeCreateBtn">
+                Create Room
+            </button>
+
+            <button
+                id="homeJoinBtn"
+                class="secondary-button"
+            >
+                Join Room
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================
+         MOBILE PROFILE
+    ====================== -->
+
+    <section
+        id="profilePage"
+        class="mobile-page hidden"
+    >
+
+        <header class="mobile-page-header">
+
+            <span>Chat17</span>
+
+            <h1>Profile</h1>
+
+        </header>
+
+
+        <div class="profile-card">
+
+            <div
+                id="profileAvatar"
+                class="profile-avatar"
+            >
+                U
+            </div>
+
+            <h2 id="profileName">
+                User
+            </h2>
+
+            <p>
+                Chat17 account
+            </p>
+
+        </div>
+
+
+        <div class="profile-stats">
+
+            <div>
+                <strong id="profileChats">
+                    0
+                </strong>
+
+                <span>
+                    Chats
+                </span>
+            </div>
+
+
+            <div>
+                <strong id="profileRooms">
+                    0
+                </strong>
+
+                <span>
+                    Rooms
+                </span>
+            </div>
+
+        </div>
+
+
+        <button
+            id="logoutBtn"
+            class="logout-button"
+        >
+            Logout
+        </button>
+
+      <div class="developed-by">
+    Developed by 
+          <strong>Subash S</strong>
+        
+</div>
+
+
+    </section>
+
+</div>
+
+
+<!-- =========================
+     NEW CONVERSATION MODAL
+========================= -->
+
+<div
+    id="modal"
+    class="modal hidden"
+>
+
+    <div class="modal-card">
+
+        <div class="modal-header">
+
+            <div>
+                <span>
+                    Conversation
+                </span>
+
+                <h2>
+                    New Chat
+                </h2>
+            </div>
+
+            <button
+                id="closeModal"
+                class="modal-close"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- CREATE -->
+
+        <button
+            id="createModalBtn"
+            class="action-card"
+        >
+
+            <div class="action-icon">
+                ✨
+            </div>
+
+            <div>
+
+                <strong>
+                    Create Room
+                </strong>
+
+                <small>
+                    Create a new room and share its code.
+                </small>
+
+            </div>
+
+            <span>
+                ›
+            </span>
+
+        </button>
+
+
+        <!-- JOIN -->
+
+        <button
+            id="joinModalBtn"
+            class="action-card"
+        >
+
+            <div class="action-icon">
+                🔗
+            </div>
+
+            <div>
+
+                <strong>
+                    Join Room
+                </strong>
+
+                <small>
+                    Enter a room code to join.
+                </small>
+
+            </div>
+
+            <span>
+                ›
+            </span>
+
+        </button>
+
+
+        <!-- JOIN BOX -->
+
+        <div
+            id="joinBox"
+            class="join-box hidden"
+        >
+
+            <label>
+                Room Code
+            </label>
+
+            <div class="join-input-row">
+
+                <input
+                    id="roomCodeInput"
+                    type="text"
+                    placeholder="ABC123"
+                    maxlength="6"
+                    autocomplete="off"
+                >
+
+                <button id="confirmJoinBtn">
+                    Join
+                </button>
+
+            </div>
+
+            <button
+                id="scanRoomQrBtn"
+                class="scan-qr-button"
+                type="button"
+            >
+                ▣ Scan QR Code
+            </button>
+
+            <div id="qrScannerBox" class="qr-scanner-box hidden">
+                <div id="qrReader"></div>
+                <button id="stopQrScannerBtn" class="stop-qr-button" type="button">
+                    Close Scanner
+                </button>
+                <p id="qrScannerStatus" class="qr-scanner-status" aria-live="polite"></p>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     ROOM CODE POPUP
+========================= -->
+
+<div
+    id="roomCodePopup"
+    class="room-popup hidden"
+>
+
+    <div class="room-popup-card">
+
+        <button
+            id="closeRoomPopup"
+            class="popup-close"
+        >
+            ×
+        </button>
+
+        <div class="popup-icon">
+            🔗
+        </div>
+
+        <h2>
+            Room Created
+        </h2>
+
+        <p>
+            Share this code with people you want
+            to invite.
+        </p>
+
+        <div
+            id="createdRoomCode"
+            class="created-room-code"
+        >
+            ABC123
+        </div>
+
+        <div class="created-room-qr-wrap">
+            <div id="createdRoomQr" class="created-room-qr" aria-label="QR code to scan and connect"></div>
+            <span>Scan to connect</span>
+        </div>
+
+        <button
+            id="copyRoomCode"
+            class="copy-button"
+        >
+            Copy Room Code
+        </button>
+
+        <button
+            id="continueRoomBtn"
+            class="continue-button"
+        >
+            Continue Chat
+        </button>
+
+    </div>
+
+</div>
+
+
+
+<!-- =========================
+     RENAME ROOM
+========================= -->
+
+<div
+    id="renameRoomModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="renameRoomTitle"
+>
+    <div class="delete-account-card rename-room-card">
+        <button id="closeRenameRoomModal" class="delete-modal-close" type="button" aria-label="Close">×</button>
+        <div class="delete-warning-icon">✏️</div>
+        <h2 id="renameRoomTitle">Rename room</h2>
+        <p class="delete-account-warning">Choose a new name for this room. The new name will be visible to everyone in the room.</p>
+        <label for="renameRoomInput" class="delete-confirm-label">Room name</label>
+        <input id="renameRoomInput" class="delete-account-input" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Enter room name">
+        <p id="renameRoomError" class="delete-account-error" aria-live="polite"></p>
+        <div class="delete-account-actions">
+            <button id="cancelRenameRoom" class="delete-cancel-button" type="button">Cancel</button>
+            <button id="confirmRenameRoom" class="delete-confirm-button rename-confirm-button" type="button">Rename room</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- =========================
+     DELETE ROOM CONFIRMATION
+========================= -->
+
+<div
+    id="deleteRoomModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="deleteRoomTitle"
+>
+    <div class="delete-account-card">
+        <button id="closeDeleteRoomModal" class="delete-modal-close" type="button" aria-label="Close">×</button>
+        <div class="delete-warning-icon">⚠️</div>
+        <h2 id="deleteRoomTitle">Delete this room?</h2>
+        <p class="delete-account-warning">
+            This will permanently delete the room and its messages for everyone in the room.
+            <strong>This action cannot be undone.</strong>
+        </p>
+        <label for="deleteRoomInput" class="delete-confirm-label">
+            To confirm, type <code>delete room</code> below:
+        </label>
+        <input id="deleteRoomInput" class="delete-account-input" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="delete room">
+        <p id="deleteRoomError" class="delete-account-error" aria-live="polite"></p>
+        <div class="delete-account-actions">
+            <button id="cancelDeleteRoom" class="delete-cancel-button" type="button">Cancel</button>
+            <button id="confirmDeleteRoom" class="delete-confirm-button" type="button" disabled>Delete room</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- =========================
+     ROOM CODE DIALOG
+========================= -->
+
+<div
+    id="roomCodeModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="roomCodeTitle"
+>
+    <div class="delete-account-card room-code-card">
+        <button id="closeRoomCodeModal" class="delete-modal-close" type="button" aria-label="Close">×</button>
+        <div class="delete-warning-icon">🔗</div>
+        <h2 id="roomCodeTitle">Room code</h2>
+        <p class="delete-account-warning">Share this code with someone to let them join this room.</p>
+        <div id="roomCodeValue" class="room-code-display">ABC123</div>
+
+        <div class="room-qr-wrap">
+            <div id="roomCodeQr" class="room-code-qr" aria-label="QR code for this room"></div>
+            <p>Scan this QR code to join the room.</p>
+        </div>
+
+        <p id="roomCodeCopied" class="room-code-copied" aria-live="polite"></p>
+        <div class="delete-account-actions">
+            <button id="closeRoomCodeModalButton" class="delete-cancel-button" type="button">Close</button>
+            <button id="copyRoomCodeBtn" class="delete-confirm-button" type="button">Copy code</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- =========================
+     DELETE ACCOUNT CONFIRMATION
+========================= -->
+
+<div
+    id="deleteAccountModal"
+    class="delete-account-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="deleteAccountTitle"
+>
+    <div class="delete-account-card">
+
+        <button
+            id="closeDeleteAccountModal"
+            class="delete-modal-close"
+            type="button"
+            aria-label="Close"
+        >
+            ×
+        </button>
+
+        <div class="delete-warning-icon">⚠️</div>
+
+        <h2 id="deleteAccountTitle">
+            Delete your account?
+        </h2>
+
+        <p class="delete-account-warning">
+            This will log you out and permanently clear your
+            Chat17 account data from this browser. Your messages
+            will also be removed from the rooms you are part of.
+            <strong>This action cannot be undone.</strong>
+        </p>
+
+        <label
+            for="deleteAccountInput"
+            class="delete-confirm-label"
+        >
+            To confirm, type
+            <code>yes delete account</code>
+            below:
+        </label>
+
+        <input
+            id="deleteAccountInput"
+            class="delete-account-input"
+            type="text"
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck="false"
+            placeholder="yes delete account"
+        >
+
+        <p
+            id="deleteAccountError"
+            class="delete-account-error"
+            aria-live="polite"
+        ></p>
+
+        <div class="delete-account-actions">
+
+            <button
+                id="cancelDeleteAccount"
+                class="delete-cancel-button"
+                type="button"
+            >
+                Cancel
+            </button>
+
+            <button
+                id="confirmDeleteAccount"
+                class="delete-confirm-button"
+                type="button"
+                disabled
+            >
+                Delete account
+            </button>
+
+        </div>
+
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+
+<script src="app.js"></script>
+
+</body>
+</html>
