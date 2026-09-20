@@ -58,6 +58,82 @@ app.use(
 const rooms =
     new Map();
 
+/*
+ * Active WebRTC calls.
+ * The server relays only signalling messages; microphone audio stays
+ * peer-to-peer between the two browsers.
+ */
+const activeCalls = new Map();
+
+function findSocketById(id) {
+    return id ? io.sockets.sockets.get(id) : null;
+}
+
+function emitCallHistory(call, status, duration = 0) {
+    if (!call) return;
+    const room = rooms.get(call.roomCode);
+    if (!room) return;
+
+    const base = {
+        id: `call-${call.callId}-${Date.now()}`,
+        type: "call-history",
+        callId: call.callId,
+        roomCode: call.roomCode,
+        username: call.callerUsername,
+        senderUsername: call.callerUsername,
+        message: status === "missed" ? "Missed call" : "Audio call",
+        time: new Date().toISOString(),
+        status,
+        duration: Math.max(0, Math.floor(duration / 1000))
+    };
+
+    const saved = { ...base };
+    room.messages.push(saved);
+    if (room.messages.length > 200) room.messages = room.messages.slice(-200);
+
+    const caller = findSocketById(call.callerSocketId);
+    const callee = findSocketById(call.calleeSocketId);
+
+    if (caller) caller.emit("call-history", { ...base, direction: "outgoing" });
+    if (callee) callee.emit("call-history", { ...base, direction: "incoming" });
+}
+
+function findSocketsByUsername(username) {
+    const target = cleanName(username).toLowerCase();
+    if (!target) return [];
+
+    return Array.from(io.sockets.sockets.values()).filter(
+        candidate =>
+            cleanName(candidate.username).toLowerCase() === target
+    );
+}
+
+function emitCallToSocket(socketId, event, payload) {
+    const target = findSocketById(socketId);
+    if (target) {
+        target.emit(event, payload);
+        return true;
+    }
+    return false;
+}
+
+function endActiveCall(callId, event = "call-ended", extra = {}) {
+    const call = activeCalls.get(callId);
+    if (!call) return;
+
+    const payload = { callId, ...extra };
+
+    if (call.callerSocketId) {
+        emitCallToSocket(call.callerSocketId, event, payload);
+    }
+
+    if (call.calleeSocketId) {
+        emitCallToSocket(call.calleeSocketId, event, payload);
+    }
+
+    activeCalls.delete(callId);
+}
+
 
 /* ==========================================
    ROOM CODE
@@ -1095,6 +1171,233 @@ io.on(
 
 
         /* ==================================
+           REAL-TIME AUDIO CALL SIGNALING
+        ================================== */
+
+        socket.on("call-user", (data, callback) => {
+            data = data || {};
+
+            const callerUsername = cleanName(socket.username || data.callerUsername);
+            const targetUsername = cleanName(data.targetUsername);
+            const roomCode = cleanRoomCode(data.roomCode || socket.roomCode);
+            const callId = String(data.callId || "").trim().slice(0, 100);
+            const room = rooms.get(roomCode);
+
+            if (!callerUsername || !targetUsername || !callId || !room || socket.roomCode !== roomCode) {
+                if (typeof callback === "function") callback({
+                    success: false,
+                    message: "Unable to start the call. The room is unavailable."
+                });
+                return;
+            }
+
+            if (callerUsername.toLowerCase() === targetUsername.toLowerCase()) {
+                if (typeof callback === "function") callback({
+                    success: false,
+                    message: "You cannot call yourself."
+                });
+                return;
+            }
+
+            // Find the target only inside the current room. This prevents a user
+            // in another room from receiving the call.
+            const targets = Array.from(io.sockets.sockets.values()).filter(candidate =>
+                candidate.id !== socket.id &&
+                candidate.roomCode === roomCode &&
+                cleanName(candidate.username).toLowerCase() === targetUsername.toLowerCase()
+            );
+
+            if (!targets.length) {
+                if (typeof callback === "function") callback({
+                    success: false,
+                    message: `${targetUsername} is offline.`
+                });
+                return;
+            }
+
+            // One person can have multiple tabs. Pick the first tab that is not
+            // already in a call; otherwise report the user as busy.
+            const target = targets.find(candidate => {
+                for (const call of activeCalls.values()) {
+                    if (call.callerSocketId === candidate.id || call.calleeSocketId === candidate.id) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            if (!target) {
+                if (typeof callback === "function") callback({
+                    success: false,
+                    message: `${targetUsername} is already on another call.`
+                });
+                return;
+            }
+
+            // Prevent duplicate call IDs.
+            if (activeCalls.has(callId)) {
+                if (typeof callback === "function") callback({
+                    success: false,
+                    message: "This call is already being started."
+                });
+                return;
+            }
+
+            const call = {
+                callId,
+                roomCode,
+                callerSocketId: socket.id,
+                callerUsername,
+                calleeSocketId: target.id,
+                calleeUsername: cleanName(target.username),
+                status: "ringing",
+                createdAt: Date.now()
+            };
+
+            activeCalls.set(callId, call);
+
+            target.emit("call-incoming", {
+                callId,
+                roomCode,
+                callerUsername,
+                callerSocketId: socket.id
+            });
+
+            if (typeof callback === "function") callback({
+                success: true,
+                callId,
+                targetUsername: call.calleeUsername
+            });
+        });
+
+        socket.on("call-accept", (data, callback) => {
+            const callId = String(data?.callId || "").trim();
+            const call = activeCalls.get(callId);
+
+            if (!call || call.calleeSocketId !== socket.id || call.status !== "ringing") {
+                if (typeof callback === "function") callback({
+                    success: false,
+                    message: "This call is no longer available."
+                });
+                return;
+            }
+
+            call.status = "accepted";
+            call.acceptedAt = Date.now();
+
+            const caller = findSocketById(call.callerSocketId);
+            if (!caller) {
+                activeCalls.delete(callId);
+                if (typeof callback === "function") callback({
+                    success: false,
+                    message: "The caller has disconnected."
+                });
+                return;
+            }
+
+            caller.emit("call-accepted", {
+                callId,
+                calleeUsername: call.calleeUsername
+            });
+
+            if (typeof callback === "function") callback({ success: true, callId });
+        });
+
+        socket.on("call-reject", (data) => {
+            const callId = String(data?.callId || "").trim();
+            const call = activeCalls.get(callId);
+            if (!call) return;
+
+            if (socket.id !== call.calleeSocketId && socket.id !== call.callerSocketId) return;
+
+            const caller = findSocketById(call.callerSocketId);
+            if (caller) {
+                caller.emit("call-rejected", {
+                    callId,
+                    by: socket.username || call.calleeUsername
+                });
+            }
+
+            emitCallHistory(call, "declined", 0);
+            activeCalls.delete(callId);
+        });
+
+        socket.on("call-offer", (data) => {
+            const callId = String(data?.callId || "").trim();
+            const call = activeCalls.get(callId);
+            if (!call || call.callerSocketId !== socket.id || !data?.offer) return;
+
+            const callee = findSocketById(call.calleeSocketId);
+            if (!callee) return;
+
+            callee.emit("call-offer", {
+                callId,
+                offer: data.offer
+            });
+        });
+
+        socket.on("call-answer", (data) => {
+            const callId = String(data?.callId || "").trim();
+            const call = activeCalls.get(callId);
+            if (!call || call.calleeSocketId !== socket.id || !data?.answer) return;
+
+            const caller = findSocketById(call.callerSocketId);
+            if (!caller) return;
+
+            caller.emit("call-answer", {
+                callId,
+                answer: data.answer
+            });
+        });
+
+        socket.on("call-ice", (data) => {
+            const callId = String(data?.callId || "").trim();
+            const call = activeCalls.get(callId);
+            if (!call || !data?.candidate) return;
+
+            let targetSocketId = null;
+            if (socket.id === call.callerSocketId) {
+                targetSocketId = call.calleeSocketId;
+            } else if (socket.id === call.calleeSocketId) {
+                targetSocketId = call.callerSocketId;
+            } else {
+                return;
+            }
+
+            const target = findSocketById(targetSocketId);
+            if (target) {
+                target.emit("call-ice", {
+                    callId,
+                    candidate: data.candidate
+                });
+            }
+        });
+
+        socket.on("call-end", (data) => {
+            const callId = String(data?.callId || "").trim();
+            const call = activeCalls.get(callId);
+            if (!call) return;
+
+            if (socket.id !== call.callerSocketId && socket.id !== call.calleeSocketId) return;
+
+            const otherSocketId = socket.id === call.callerSocketId
+                ? call.calleeSocketId
+                : call.callerSocketId;
+
+            const other = findSocketById(otherSocketId);
+            if (other) {
+                other.emit("call-ended", {
+                    callId,
+                    by: socket.username || "User"
+                });
+            }
+
+            const duration = call.acceptedAt ? Date.now() - call.acceptedAt : 0;
+            emitCallHistory(call, call.status === "accepted" ? "answered" : "missed", duration);
+            activeCalls.delete(callId);
+        });
+
+        /* ==================================
            DISCONNECT
         ================================== */
 
@@ -1107,6 +1410,25 @@ io.on(
                     socket.id,
                     reason
                 );
+
+                // End any audio call owned by this socket.
+                for (const [callId, call] of activeCalls.entries()) {
+                    if (
+                        call.callerSocketId === socket.id ||
+                        call.calleeSocketId === socket.id
+                    ) {
+                        endActiveCall(callId, "call-ended", {
+                            by: socket.username || "User"
+                        });
+
+                        for (const target of findSocketsByUsername(call.calleeUsername)) {
+                            target.emit("call-ended", {
+                                callId,
+                                by: socket.username || "User"
+                            });
+                        }
+                    }
+                }
 
 
                 const roomCode =

@@ -15,6 +15,461 @@ const socket = io({
 
 
 /* ==========================================
+   REAL-TIME AUDIO CALLING
+========================================== */
+
+let roomUsers = [];
+let activeCall = null;
+let callPeerConnection = null;
+let localCallStream = null;
+let pendingIceCandidates = [];
+let callTimerInterval = null;
+let callStartedAt = 0;
+let isCallMuted = false;
+let isCallSpeakerOn = false;
+let callOutputDeviceId = null;
+let incomingRingtoneContext = null;
+let incomingRingtoneTimer = null;
+
+const WEBRTC_CONFIG = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" }
+    ]
+};
+
+function callInitial(name) {
+    return String(name || "?").trim().charAt(0).toUpperCase() || "?";
+}
+
+function getOtherOnlineUsers() {
+    const me = String(username || "").trim().toLowerCase();
+    const unique = new Map();
+
+    roomUsers.forEach(user => {
+        const name = String(user?.username || "").trim();
+        if (!name || name.toLowerCase() === me) return;
+        unique.set(name.toLowerCase(), name);
+    });
+
+    return [...unique.values()];
+}
+
+function setCallPanel(name, status) {
+    const panel = document.getElementById("activeCallPanel");
+    const avatar = document.getElementById("activeCallAvatar");
+    const nameEl = document.getElementById("activeCallName");
+    const statusEl = document.getElementById("activeCallStatus");
+
+    if (avatar) avatar.textContent = callInitial(name);
+    if (nameEl) nameEl.textContent = name || "User";
+    if (statusEl) statusEl.textContent = status || "";
+    if (panel) panel.classList.remove("hidden");
+}
+
+function hideCallPicker() {
+    const modal = document.getElementById("callPickerModal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+function showCallPicker() {
+    const modal = document.getElementById("callPickerModal");
+    const list = document.getElementById("callPeopleList");
+    const empty = document.getElementById("callPickerEmpty");
+    if (!modal || !list) return;
+
+    const people = getOtherOnlineUsers();
+    list.innerHTML = "";
+
+    if (!people.length) {
+        if (empty) empty.classList.remove("hidden");
+    } else {
+        if (empty) empty.classList.add("hidden");
+
+        people.forEach(name => {
+            const row = document.createElement("button");
+            row.type = "button";
+            row.className = "call-person";
+            row.innerHTML = `
+                <span class="call-person-avatar">${escapeHtml(callInitial(name))}</span>
+                <span class="call-person-info">
+                    <strong>${escapeHtml(name)}</strong>
+                    <small>Online • Audio call</small>
+                </span>
+                <span class="call-person-button" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7.2 3.5c.7-.3 1.5 0 1.9.7l1.4 2.7c.3.6.2 1.3-.3 1.8L8.8 10.1c1.1 2.1 2.9 4 5.1 5.1l1.4-1.4c.5-.5 1.2-.6 1.8-.3l2.7 1.4c.7.4 1 1.2.7 1.9l-.7 1.7c-.4.9-1.3 1.5-2.3 1.4C10.1 19.1 4.9 13.9 4.1 6.5c-.1-1 .5-1.9 1.4-2.3l1.7-.7Z"/></svg></span>
+            `;
+            row.addEventListener("click", () => {
+                hideCallPicker();
+                startAudioCall(name);
+            });
+            list.appendChild(row);
+        });
+    }
+
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+function clearCallTimer() {
+    if (callTimerInterval) clearInterval(callTimerInterval);
+    callTimerInterval = null;
+    callStartedAt = 0;
+}
+
+function startCallTimer() {
+    clearCallTimer();
+    callStartedAt = Date.now();
+
+    const timer = document.getElementById("activeCallTimer");
+    const status = document.getElementById("activeCallStatus");
+    if (timer) timer.classList.remove("hidden");
+    if (status) status.textContent = "Connected";
+
+    const update = () => {
+        const seconds = Math.floor((Date.now() - callStartedAt) / 1000);
+        const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const ss = String(seconds % 60).padStart(2, "0");
+        if (timer) timer.textContent = `${mm}:${ss}`;
+    };
+
+    update();
+    callTimerInterval = setInterval(update, 1000);
+}
+
+function stopCallMedia() {
+    if (callPeerConnection) {
+        try { callPeerConnection.close(); } catch (_) {}
+    }
+    callPeerConnection = null;
+
+    if (localCallStream) {
+        localCallStream.getTracks().forEach(track => {
+            try { track.stop(); } catch (_) {}
+        });
+    }
+    localCallStream = null;
+    pendingIceCandidates = [];
+
+    const audio = document.getElementById("remoteCallAudio");
+    if (audio) audio.srcObject = null;
+
+    isCallMuted = false;
+    isCallSpeakerOn = false;
+    callOutputDeviceId = null;
+
+    const mute = document.getElementById("muteCallBtn");
+    const speaker = document.getElementById("speakerCallBtn");
+    if (mute) {
+        mute.classList.remove("active");
+        mute.innerHTML = '<svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>';
+    }
+    if (speaker) {
+        speaker.classList.remove("active");
+        speaker.setAttribute("aria-label", "Turn on loudspeaker");
+        speaker.setAttribute("title", "Loudspeaker");
+        speaker.innerHTML = '<svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10"/></svg><span class="call-control-label">Speaker</span>';
+    }
+
+    clearCallTimer();
+}
+
+function finishCallUi() {
+    hideCallPicker();
+
+    const incoming = document.getElementById("incomingCallModal");
+    if (incoming) {
+        incoming.classList.add("hidden");
+        incoming.setAttribute("aria-hidden", "true");
+    }
+
+    const panel = document.getElementById("activeCallPanel");
+    if (panel) {
+        panel.classList.add("hidden");
+        panel.classList.remove("call-minimized");
+    }
+
+    stopCallMedia();
+    activeCall = null;
+}
+
+function stopIncomingRingtone() {
+    if (incomingRingtoneTimer) { clearInterval(incomingRingtoneTimer); incomingRingtoneTimer = null; }
+    if (incomingRingtoneContext) { incomingRingtoneContext.close().catch(() => {}); incomingRingtoneContext = null; }
+}
+
+function playIncomingRingtone() {
+    stopIncomingRingtone();
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        incomingRingtoneContext = ctx;
+        const ring = () => {
+            const now = ctx.currentTime;
+            const gain = ctx.createGain();
+            const a = ctx.createOscillator(), b = ctx.createOscillator();
+            a.type = b.type = 'sine'; a.frequency.value = 880; b.frequency.value = 660;
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.08, now + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+            a.connect(gain); b.connect(gain); gain.connect(ctx.destination);
+            a.start(now); b.start(now); a.stop(now + 0.45); b.stop(now + 0.45);
+        };
+        ctx.resume().catch(() => {}); ring();
+        incomingRingtoneTimer = setInterval(ring, 1300);
+    } catch (e) { console.warn('Ringtone unavailable', e); }
+}
+
+function showIncomingCall(data) {
+    if (!data?.callId || !data?.callerUsername) return;
+
+    if (activeCall) {
+        socket.emit("call-reject", { callId: data.callId });
+        return;
+    }
+
+    activeCall = {
+        callId: data.callId,
+        role: "callee",
+        peerName: String(data.callerUsername),
+        roomCode: String(data.roomCode || "").toUpperCase()
+    };
+
+    const modal = document.getElementById("incomingCallModal");
+    const name = document.getElementById("incomingCallName");
+    const avatar = document.getElementById("incomingCallAvatar");
+
+    if (name) name.textContent = activeCall.peerName;
+    if (avatar) avatar.textContent = callInitial(activeCall.peerName);
+
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.setAttribute("aria-hidden", "false");
+    }
+
+    playIncomingRingtone();
+}
+
+async function getMicrophoneStream() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Microphone access is not supported by this browser.");
+    }
+
+    return navigator.mediaDevices.getUserMedia({
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+        },
+        video: false
+    });
+}
+
+async function createCallPeerConnection() {
+    const pc = new RTCPeerConnection(WEBRTC_CONFIG);
+
+    pc.onicecandidate = event => {
+        if (event.candidate && activeCall) {
+            socket.emit("call-ice", {
+                callId: activeCall.callId,
+                candidate: event.candidate
+            });
+        }
+    };
+
+    pc.ontrack = event => {
+        const audio = document.getElementById("remoteCallAudio");
+        if (!audio) return;
+
+        audio.srcObject = event.streams?.[0] || audio.srcObject;
+        // Phone/receiver mode is the default. On browsers that expose an
+        // earpiece/communications output, route to it; otherwise WebRTC
+        // retains the browser's native call route.
+        setCallAudioOutput(false).catch(() => {});
+        audio.play().catch(() => {});
+    };
+
+    pc.onconnectionstatechange = () => {
+        if (!activeCall) return;
+
+        if (pc.connectionState === "connected") {
+            startCallTimer();
+        } else if (["failed", "disconnected"].includes(pc.connectionState)) {
+            const status = document.getElementById("activeCallStatus");
+            if (status) status.textContent = "Connection lost";
+        }
+    };
+
+    return pc;
+}
+
+async function startAudioCall(targetUsername) {
+    if (!socket.connected || !username || !targetUsername || activeCall) return;
+
+    const target = String(targetUsername).trim();
+    const callId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    activeCall = {
+        callId,
+        role: "caller",
+        peerName: target,
+        roomCode: currentRoom
+    };
+
+    setCallPanel(target, "Calling…");
+
+    try {
+        // Request microphone permission from the user's call button gesture.
+        localCallStream = await getMicrophoneStream();
+        callPeerConnection = await createCallPeerConnection();
+
+        localCallStream.getTracks().forEach(track => {
+            callPeerConnection.addTrack(track, localCallStream);
+        });
+
+        socket.emit("call-user", {
+            targetUsername: target,
+            roomCode: currentRoom,
+            callId
+        }, result => {
+            if (!result?.success) {
+                alert(result?.message || "Unable to start audio call.");
+                endAudioCall(false);
+            }
+        });
+    } catch (error) {
+        console.error("Microphone error:", error);
+        alert(
+            error?.name === "NotAllowedError"
+                ? "Microphone permission was denied. Allow microphone access and try again."
+                : "Unable to access the microphone."
+        );
+        endAudioCall(false);
+    }
+}
+
+async function acceptIncomingCall() {
+    if (!activeCall || activeCall.role !== "callee") return;
+    stopIncomingRingtone();
+
+    const incoming = document.getElementById("incomingCallModal");
+    if (incoming) {
+        incoming.classList.add("hidden");
+        incoming.setAttribute("aria-hidden", "true");
+    }
+
+    setCallPanel(activeCall.peerName, "Connecting…");
+
+    try {
+        localCallStream = await getMicrophoneStream();
+        callPeerConnection = await createCallPeerConnection();
+
+        localCallStream.getTracks().forEach(track => {
+            callPeerConnection.addTrack(track, localCallStream);
+        });
+
+        socket.emit("call-accept", { callId: activeCall.callId }, result => {
+            if (!result?.success) {
+                alert(result?.message || "This call is no longer available.");
+                finishCallUi();
+            }
+        });
+    } catch (error) {
+        console.error("Microphone error:", error);
+        alert(
+            error?.name === "NotAllowedError"
+                ? "Microphone permission was denied. Allow microphone access and try again."
+                : "Unable to access the microphone."
+        );
+        rejectIncomingCall();
+    }
+}
+
+function rejectIncomingCall() {
+    stopIncomingRingtone();
+    if (!activeCall) return;
+    socket.emit("call-reject", { callId: activeCall.callId });
+    finishCallUi();
+}
+
+function endAudioCall(notify = true) {
+    stopIncomingRingtone();
+    if (!activeCall) return;
+
+    if (notify) {
+        socket.emit("call-end", { callId: activeCall.callId });
+    }
+
+    finishCallUi();
+}
+
+async function handleCallOffer(data) {
+    if (!activeCall || data?.callId !== activeCall.callId) return;
+
+    try {
+        if (!callPeerConnection) {
+            localCallStream = await getMicrophoneStream();
+            callPeerConnection = await createCallPeerConnection();
+            localCallStream.getTracks().forEach(track => {
+                callPeerConnection.addTrack(track, localCallStream);
+            });
+        }
+
+        await callPeerConnection.setRemoteDescription(
+            new RTCSessionDescription(data.offer)
+        );
+
+        for (const candidate of pendingIceCandidates.splice(0)) {
+            try { await callPeerConnection.addIceCandidate(candidate); } catch (_) {}
+        }
+
+        const answer = await callPeerConnection.createAnswer();
+        await callPeerConnection.setLocalDescription(answer);
+
+        socket.emit("call-answer", {
+            callId: activeCall.callId,
+            answer
+        });
+    } catch (error) {
+        console.error("WebRTC offer error:", error);
+        endAudioCall(true);
+    }
+}
+
+async function handleCallAnswer(data) {
+    if (!activeCall || data?.callId !== activeCall.callId || !callPeerConnection) return;
+
+    try {
+        await callPeerConnection.setRemoteDescription(
+            new RTCSessionDescription(data.answer)
+        );
+
+        for (const candidate of pendingIceCandidates.splice(0)) {
+            try { await callPeerConnection.addIceCandidate(candidate); } catch (_) {}
+        }
+    } catch (error) {
+        console.error("WebRTC answer error:", error);
+    }
+}
+
+async function handleCallIce(data) {
+    if (!activeCall || data?.callId !== activeCall.callId || !data.candidate) return;
+
+    const candidate = new RTCIceCandidate(data.candidate);
+
+    if (!callPeerConnection || !callPeerConnection.remoteDescription) {
+        pendingIceCandidates.push(candidate);
+        return;
+    }
+
+    try { await callPeerConnection.addIceCandidate(candidate); }
+    catch (error) { console.warn("ICE candidate error:", error); }
+}
+
+
+/* ==========================================
    REAL-TIME TYPING INDICATOR
 ========================================== */
 
@@ -343,6 +798,8 @@ function startLogin() {
 
 function showApp() {
 
+    document.documentElement.classList.remove("chat17-saved-user");
+
     if (loginScreen) {
 
         loginScreen.classList.add(
@@ -562,8 +1019,219 @@ socket.on(
 
 
 /* ==========================================
+   AUDIO CALL SIGNALS
+========================================== */
+
+socket.on("call-incoming", showIncomingCall);
+
+socket.on("call-taken", data => {
+    stopIncomingRingtone();
+    if (!activeCall || activeCall.callId !== data?.callId) return;
+    finishCallUi();
+});
+
+socket.on("call-accepted", async data => {
+    if (!activeCall || activeCall.callId !== data?.callId || activeCall.role !== "caller") return;
+
+    try {
+        const offer = await callPeerConnection.createOffer({
+            offerToReceiveAudio: true
+        });
+
+        await callPeerConnection.setLocalDescription(offer);
+
+        socket.emit("call-offer", {
+            callId: activeCall.callId,
+            offer
+        });
+
+        setCallPanel(activeCall.peerName, "Connecting…");
+    } catch (error) {
+        console.error("WebRTC offer creation error:", error);
+        endAudioCall(true);
+    }
+});
+
+socket.on("call-offer", handleCallOffer);
+socket.on("call-answer", handleCallAnswer);
+socket.on("call-ice", handleCallIce);
+
+socket.on("call-rejected", data => {
+    if (!activeCall || activeCall.callId !== data?.callId) return;
+
+    const status = document.getElementById("activeCallStatus");
+    if (status) status.textContent = "Call declined";
+
+    setTimeout(finishCallUi, 900);
+});
+
+socket.on("call-cancelled", data => {
+    stopIncomingRingtone();
+    if (!activeCall || activeCall.callId !== data?.callId) return;
+    finishCallUi();
+});
+
+socket.on("call-ended", data => {
+    stopIncomingRingtone();
+    if (!activeCall || activeCall.callId !== data?.callId) return;
+    finishCallUi();
+});
+
+socket.on("call-history", data => {
+    if (!data) return;
+    if (data.roomCode && String(data.roomCode).toUpperCase() !== currentRoom) return;
+    renderCallHistoryMessage(data);
+});
+
+
+/* ==========================================
    CREATE ROOM BUTTON
 ========================================== */
+
+
+const audioCallBtn = document.getElementById("audioCallBtn");
+const closeCallPickerBtn = document.getElementById("closeCallPicker");
+const callPickerModal = document.getElementById("callPickerModal");
+const acceptCallBtn = document.getElementById("acceptCallBtn");
+const rejectCallBtn = document.getElementById("rejectCallBtn");
+const endCallBtn = document.getElementById("endCallBtn");
+const closeActiveCallBtn = document.getElementById("closeActiveCallBtn");
+const minimizeCallBtn = document.getElementById("minimizeCallBtn");
+const muteCallBtn = document.getElementById("muteCallBtn");
+const speakerCallBtn = document.getElementById("speakerCallBtn");
+
+if (audioCallBtn) {
+    audioCallBtn.addEventListener("click", () => {
+        if (activeCall) {
+            setCallPanel(
+                activeCall.peerName,
+                document.getElementById("activeCallStatus")?.textContent || "Connected"
+            );
+            return;
+        }
+
+        const people = getOtherOnlineUsers();
+        if (people.length === 1) {
+            startAudioCall(people[0]);
+        } else {
+            showCallPicker();
+        }
+    });
+}
+
+if (closeCallPickerBtn) closeCallPickerBtn.addEventListener("click", hideCallPicker);
+
+if (callPickerModal) {
+    callPickerModal.addEventListener("click", event => {
+        if (event.target === callPickerModal) hideCallPicker();
+    });
+}
+
+if (acceptCallBtn) acceptCallBtn.addEventListener("click", acceptIncomingCall);
+if (rejectCallBtn) rejectCallBtn.addEventListener("click", rejectIncomingCall);
+if (endCallBtn) endCallBtn.addEventListener("click", () => endAudioCall(true));
+if (closeActiveCallBtn) closeActiveCallBtn.addEventListener("click", () => endAudioCall(true));
+
+function minimizeActiveCall() {
+    const panel = document.getElementById("activeCallPanel");
+    if (panel) panel.classList.add("call-minimized");
+}
+
+if (minimizeCallBtn) {
+    minimizeCallBtn.addEventListener("click", minimizeActiveCall);
+}
+
+const activeCallPanelForRestore = document.getElementById("activeCallPanel");
+if (activeCallPanelForRestore) {
+    activeCallPanelForRestore.addEventListener("click", event => {
+        if (!activeCallPanelForRestore.classList.contains("call-minimized")) return;
+        if (event.target.closest("button")) return;
+        activeCallPanelForRestore.classList.remove("call-minimized");
+    });
+}
+
+if (muteCallBtn) {
+    muteCallBtn.addEventListener("click", () => {
+        if (!localCallStream) return;
+
+        isCallMuted = !isCallMuted;
+        localCallStream.getAudioTracks().forEach(track => {
+            track.enabled = !isCallMuted;
+        });
+
+        muteCallBtn.classList.toggle("active", isCallMuted);
+        muteCallBtn.innerHTML = isCallMuted ? '<svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8M4 4l16 16"/></svg>' : '<svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>';
+    });
+}
+
+async function getPhoneCallOutputDevice() {
+    // Browsers differ in how much audio-routing information they expose.
+    // Prefer a communication/earpiece output when one is available.
+    if (!navigator.mediaDevices?.enumerateDevices) return null;
+
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const outputs = devices.filter(device => device.kind === "audiooutput");
+        const phone = outputs.find(device => {
+            const text = `${device.label || ""} ${device.deviceId || ""}`.toLowerCase();
+            return /earpiece|receiver|communications|communication|telephony|phone/.test(text);
+        });
+        return phone?.deviceId || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function setCallAudioOutput(speakerOn) {
+    const audio = document.getElementById("remoteCallAudio");
+    if (!audio) return;
+
+    isCallSpeakerOn = !!speakerOn;
+    audio.volume = 1;
+
+    if (typeof audio.setSinkId === "function") {
+        try {
+            if (isCallSpeakerOn) {
+                // "default" is the normal media speaker output on browsers
+                // that implement selectable audio outputs.
+                callOutputDeviceId = "default";
+                await audio.setSinkId("default");
+            } else {
+                // Try to route back to the phone receiver/communications
+                // device. If the browser does not expose it, WebRTC keeps
+                // using its native communication route.
+                const phoneDeviceId = await getPhoneCallOutputDevice();
+                if (phoneDeviceId) {
+                    callOutputDeviceId = phoneDeviceId;
+                    await audio.setSinkId(phoneDeviceId);
+                } else {
+                    callOutputDeviceId = null;
+                }
+            }
+        } catch (e) {
+            console.warn("Audio output routing unavailable:", e);
+        }
+    }
+
+    speakerCallBtn?.classList.toggle("active", isCallSpeakerOn);
+    speakerCallBtn?.setAttribute(
+        "aria-label",
+        isCallSpeakerOn ? "Loudspeaker on, tap for phone" : "Phone audio, tap for loudspeaker"
+    );
+    speakerCallBtn?.setAttribute(
+        "title",
+        isCallSpeakerOn ? "Loudspeaker on" : "Phone audio"
+    );
+    if (speakerCallBtn) {
+        speakerCallBtn.innerHTML = '<svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10"/></svg><span class="call-control-label">Speaker</span>';
+    }
+}
+
+
+if (speakerCallBtn) {
+    speakerCallBtn.addEventListener("click", () => setCallAudioOutput(!isCallSpeakerOn));
+}
+
 
 const addChatBtn =
     document.getElementById(
@@ -2702,7 +3370,45 @@ function renderMessageText(container, value) {
     }
 }
 
+function renderCallHistoryMessage(data) {
+    if (!messages || !data) return;
+    const direction = data.direction || (String(data.callerUsername || data.senderUsername || "").trim().toLowerCase() === String(username || "").trim().toLowerCase() ? "outgoing" : "incoming");
+    const item = document.createElement("div");
+    item.className = "call-history-message";
+    item.dataset.callId = String(data.callId || "");
+
+    const icon = document.createElement("div");
+    icon.className = "call-history-icon " + (direction === "outgoing" ? "outgoing" : "incoming");
+    icon.innerHTML = direction === "outgoing"
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.5c.7-.3 1.5 0 1.9.7l1.4 2.7c.3.6.2 1.3-.3 1.8L8.8 10.1c1.1 2.1 2.9 4 5.1 5.1l1.4-1.4c.5-.5 1.2-.6 1.8-.3l2.7 1.4c.7.4 1 1.2.7 1.9l-.7 1.7c-.4.9-1.3 1.5-2.3 1.4C10.1 19.1 4.9 13.9 4.1 6.5c-.1-1 .5-1.9 1.4-2.3l1.7-.7Z"/><path d="m16 5 3 3-3 3"/><path d="M19 8h-6"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.5c.7-.3 1.5 0 1.9.7l1.4 2.7c.3.6.2 1.3-.3 1.8L8.8 10.1c1.1 2.1 2.9 4 5.1 5.1l1.4-1.4c.5-.5 1.2-.6 1.8-.3l2.7 1.4c.7.4 1 1.2.7 1.9l-.7 1.7c-.4.9-1.3 1.5-2.3 1.4C10.1 19.1 4.9 13.9 4.1 6.5c-.1-1 .5-1.9 1.4-2.3l1.7-.7Z"/><path d="m8 19-3-3 3-3"/><path d="M5 16h6"/></svg>';
+
+    const body = document.createElement("div");
+    body.className = "call-history-body";
+    const title = document.createElement("strong");
+    const isMissed = data.status === "missed";
+    title.textContent = isMissed ? "Missed call" : "Audio call";
+    const meta = document.createElement("span");
+    const state = data.status === "answered" ? "Completed" : data.status === "declined" ? "Declined" : isMissed ? "Missed call" : "Ended";
+    meta.textContent = data.duration ? `${state} · ${formatCallDuration(data.duration)}` : state;
+    if (isMissed) item.classList.add("missed");
+    body.append(title, meta);
+    item.append(icon, body);
+    messages.appendChild(item);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function formatCallDuration(seconds) {
+    const total = Math.max(0, Number(seconds) || 0);
+    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function addMessage(data) {
+    if (data && data.type === "call-history") {
+        renderCallHistoryMessage(data);
+        return;
+    }
+
 
     if (!data || !messages) {
         return;
@@ -2991,6 +3697,8 @@ socket.on(
         if (!Array.isArray(users)) {
             users = [];
         }
+
+        roomUsers = users;
 
 
         if (!currentRoom) {

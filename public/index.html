@@ -122,6 +122,15 @@
 
 <link rel="stylesheet" href="style.css">
 
+<!-- Prevent the saved-user login screen from flashing before app initialization. -->
+<script>
+try {
+    if (localStorage.getItem("chat_username")) {
+        document.documentElement.classList.add("chat17-saved-user");
+    }
+} catch (_) {}
+</script>
+
 <!-- QR support: generate the room QR and scan QR codes from the camera -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <script src="https://unpkg.com/html5-qrcode" defer></script>
@@ -358,8 +367,21 @@
                 </div>
 
                 <button
+                    id="audioCallBtn"
+                    class="conversation-call"
+                    type="button"
+                    aria-label="Start audio call"
+                    title="Audio call"
+                >
+                    <svg class="call-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7.1 3.8 9.7 3a1.6 1.6 0 0 1 1.9.9l1.2 2.8a1.6 1.6 0 0 1-.4 1.8l-1.5 1.3a12.8 12.8 0 0 0 4.3 4.3l1.3-1.5a1.6 1.6 0 0 1 1.8-.4l2.8 1.2a1.6 1.6 0 0 1 .9 1.9l-.8 2.6a2.2 2.2 0 0 1-2.3 1.6C10.5 19 5 13.5 4.5 6.1a2.2 2.2 0 0 1 1.6-2.3Z"/>
+                    </svg>
+                </button>
+
+                <button
                     id="roomInfoBtn"
                     class="conversation-more"
+                    type="button"
                 >
                     ⋮
                 </button>
@@ -414,6 +436,68 @@
 
     </main>
 
+
+    <!-- =====================
+         AUDIO CALL UI
+    ====================== -->
+
+    <div id="callPickerModal" class="call-modal hidden" aria-hidden="true">
+        <div class="call-picker-card" role="dialog" aria-modal="true" aria-labelledby="callPickerTitle">
+            <div class="call-modal-top">
+                <div>
+                    <span class="call-eyebrow">Audio call</span>
+                    <h3 id="callPickerTitle">Choose a person</h3>
+                </div>
+                <button id="closeCallPicker" class="call-close" type="button" aria-label="Close">×</button>
+            </div>
+            <div id="callPeopleList" class="call-people-list"></div>
+            <p id="callPickerEmpty" class="call-empty hidden">No other person is online in this room.</p>
+        </div>
+    </div>
+
+    <div id="incomingCallModal" class="call-modal hidden" aria-hidden="true">
+        <div class="incoming-call-card" role="dialog" aria-modal="true" aria-labelledby="incomingCallName">
+            <div class="incoming-call-avatar" id="incomingCallAvatar">S</div>
+            <span class="call-eyebrow">Incoming audio call</span>
+            <h3 id="incomingCallName">Someone</h3>
+            <p id="incomingCallText">is calling you…</p>
+            <div class="incoming-call-actions">
+                <button id="rejectCallBtn" class="call-action decline" type="button"><span class="incoming-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></span><span class="incoming-action-label">Decline</span></button>
+                <button id="acceptCallBtn" class="call-action accept" type="button"><span class="incoming-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7.2 3.5c.7-.3 1.5 0 1.9.7l1.4 2.7c.3.6.2 1.3-.3 1.8L8.8 10.1c1.1 2.1 2.9 4 5.1 5.1l1.4-1.4c.5-.5 1.2-.6 1.8-.3l2.7 1.4c.7.4 1 1.2.7 1.9l-.7 1.7c-.4.9-1.3 1.5-2.3 1.4C10.1 19.1 4.9 13.9 4.1 6.5c-.1-1 .5-1.9 1.4-2.3l1.7-.7Z"/></svg></span><span class="incoming-action-label">Accept</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="activeCallPanel" class="active-call-panel hidden" aria-live="polite">
+        <div class="active-call-bg-orb orb-one"></div><div class="active-call-bg-orb orb-two"></div><div class="active-call-glow"></div>
+        <div class="active-call-content">
+            <div class="active-call-top"><span class="call-live-dot"></span><span class="call-eyebrow" id="activeCallLabel">Audio Call</span></div>
+            <div class="active-call-avatar" id="activeCallAvatar">S</div>
+            <h2 id="activeCallName">User</h2>
+            <p id="activeCallStatus">Connecting…</p>
+            <div class="active-call-timer hidden" id="activeCallTimer">00:00</div><div class="call-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="active-call-controls">
+                <button id="minimizeCallBtn" class="round-call-control" type="button" aria-label="Minimize call">
+                    <svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18h14"/></svg>
+                    <span class="call-control-label">Minimize</span>
+                </button>
+                <button id="muteCallBtn" class="round-call-control" type="button" aria-label="Mute microphone">
+                    <svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>
+                    <span class="call-control-label">Mic</span>
+                </button>
+                <button id="speakerCallBtn" class="round-call-control" type="button" aria-label="Phone audio, tap for loudspeaker">
+                    <svg class="call-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M16 9.5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10"/></svg>
+                    <span class="call-control-label">Speaker</span>
+                </button>
+                <button id="endCallBtn" class="round-call-control end" type="button" aria-label="End audio call">
+                    <svg class="call-control-icon end-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 11.2c4.3-2.1 6.5-2.1 10.8 0l1.2-2.1a2 2 0 0 1 2.7-.8l1 .5a2 2 0 0 1 .8 2.8l-1.3 2.2c-.6 1-1.7 1.5-2.8 1.3C12.9 14 11.1 14 5 15.1c-1.1.2-2.2-.3-2.8-1.3L.9 11.6a2 2 0 0 1 .8-2.8l1-.5a2 2 0 0 1 2.7.8l1.2 2.1Z"/></svg>
+                    <span class="call-control-label">End</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <audio id="remoteCallAudio" autoplay playsinline></audio>
 
     <!-- =====================
          MOBILE NAVIGATION
