@@ -3,6 +3,7 @@
 const express = require("express");
 const http = require("http");
 const path = require("path");
+const fs = require("fs");
 const { Server } = require("socket.io");
 
 const app = express();
@@ -58,6 +59,76 @@ app.use(
 const rooms =
     new Map();
 
+/* Persistent room storage: rooms survive Node.js restarts. */
+const DATA_DIR = process.env.CHAT17_DATA_DIR || path.join(__dirname, "data");
+const ROOMS_FILE = path.join(DATA_DIR, "rooms.json");
+let roomsSaveTimer = null;
+
+function serializeRoom(room) {
+    return {
+        code: room.code,
+        name: room.name,
+        owner: room.owner,
+        messages: Array.isArray(room.messages) ? room.messages.slice(-200) : [],
+        namesByUser: Object.fromEntries(
+            room.namesByUser instanceof Map
+                ? room.namesByUser.entries()
+                : Object.entries(room.namesByUser || {})
+        ),
+        createdAt: room.createdAt || Date.now()
+    };
+}
+
+function persistRoomsNow() {
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        const payload = JSON.stringify({
+            version: 1,
+            savedAt: new Date().toISOString(),
+            rooms: Array.from(rooms.values()).map(serializeRoom)
+        }, null, 2);
+        const tempFile = `${ROOMS_FILE}.tmp`;
+        fs.writeFileSync(tempFile, payload, "utf8");
+        fs.renameSync(tempFile, ROOMS_FILE);
+    } catch (error) {
+        console.error("Chat17 room persistence error:", error);
+    }
+}
+
+function persistRooms() {
+    if (roomsSaveTimer) return;
+    roomsSaveTimer = setTimeout(() => {
+        roomsSaveTimer = null;
+        persistRoomsNow();
+    }, 150);
+}
+
+function loadRooms() {
+    try {
+        if (!fs.existsSync(ROOMS_FILE)) return;
+        const parsed = JSON.parse(fs.readFileSync(ROOMS_FILE, "utf8"));
+        for (const saved of (Array.isArray(parsed?.rooms) ? parsed.rooms : [])) {
+            const code = String(saved?.code || "").trim().toUpperCase();
+            if (!/^[A-Z0-9]{6}$/.test(code)) continue;
+            const names = saved?.namesByUser && typeof saved.namesByUser === "object"
+                ? Object.entries(saved.namesByUser)
+                : [];
+            rooms.set(code, {
+                code,
+                name: String(saved.name || `Room ${code}`),
+                owner: String(saved.owner || ""),
+                users: new Map(),
+                messages: Array.isArray(saved.messages) ? saved.messages.slice(-200) : [],
+                namesByUser: new Map(names),
+                createdAt: Number(saved.createdAt) || Date.now()
+            });
+        }
+        console.log(`Loaded ${rooms.size} persistent Chat17 room(s).`);
+    } catch (error) {
+        console.error("Chat17 room load error:", error);
+    }
+}
+
 /*
  * Active WebRTC calls.
  * The server relays only signalling messages; microphone audio stays
@@ -90,6 +161,7 @@ function emitCallHistory(call, status, duration = 0) {
     const saved = { ...base };
     room.messages.push(saved);
     if (room.messages.length > 200) room.messages = room.messages.slice(-200);
+    persistRooms();
 
     const caller = findSocketById(call.callerSocketId);
     const callee = findSocketById(call.calleeSocketId);
@@ -224,6 +296,9 @@ function cleanRoomCode(code) {
         .slice(0, 6);
 
 }
+
+
+loadRooms();
 
 
 /* ==========================================
@@ -395,6 +470,7 @@ io.on(
                     room
                 );
 
+                persistRooms();
 
                 joinRoomSocket(
                     socket,
@@ -719,6 +795,7 @@ io.on(
                 io.to(roomCode).emit("room-deleted", { roomCode });
 
                 rooms.delete(roomCode);
+                persistRoomsNow();
 
                 // Remove socket room state for connected members.
                 for (const socketId of room.users.keys()) {
@@ -776,6 +853,7 @@ io.on(
 
                 if (!room.namesByUser) room.namesByUser = new Map();
                 room.namesByUser.set(username, roomName);
+                persistRooms();
 
                 // Do NOT broadcast this rename. It belongs only to this user.
                 callback({
@@ -841,12 +919,12 @@ io.on(
 
                     emitUsers(roomCode);
 
-                    // If nobody is left, remove the room and all remaining data.
-                    if (room.users.size === 0) {
-                        rooms.delete(roomCode);
-                    }
+                    // Persistent rooms are not deleted by logout.
+                    // Only the explicit Delete Room action removes them.
 
                 });
+
+                persistRooms();
 
                 socket.roomCode = "";
                 socket.username = "";
@@ -1028,6 +1106,8 @@ io.on(
                 }
 
 
+                persistRooms();
+
                 io.to(
                     socket.roomCode
                 ).emit(
@@ -1161,6 +1241,10 @@ io.on(
                 }
 
                 // Sync the badge immediately across any other tabs.
+                if (changed) {
+                    persistRooms();
+                }
+
                 pushUnreadCount(roomCode, username);
 
                 if (typeof callback === "function") {
@@ -1656,3 +1740,13 @@ server.listen(
 
     }
 );
+
+process.on("SIGTERM", () => {
+    persistRoomsNow();
+    server.close(() => process.exit(0));
+});
+
+process.on("SIGINT", () => {
+    persistRoomsNow();
+    server.close(() => process.exit(0));
+});

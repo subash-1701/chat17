@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "savedAt": "2026-09-21T10:26:57.729Z",
+  "rooms": [
+    {
+      "code": "RVNS9D",
+      "name": "Room RVNS9D",
+      "owner": "Subash",
+      "messages": [],
+      "namesByUser": {},
+      "createdAt": 1789986417578
+    }
+  ]
+}

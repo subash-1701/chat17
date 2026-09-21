@@ -1000,6 +1000,13 @@ socket.on("disconnect", () => {
             "Reconnecting..."
         );
 
+        clearTimeout(window.chat17RejoinRetry);
+        window.chat17RejoinRetry = setTimeout(() => {
+            if (currentRoom && socket.connected) {
+                rejoinRoom(currentRoom);
+            }
+        }, 2500);
+
     }
 
 });
@@ -1953,19 +1960,22 @@ function rejoinRoom(roomCode) {
 
             if (!result || !result.success) {
 
-                // Saved room no longer exists
-                // (e.g. server restarted). Clear it
-                // so we don't keep retrying.
+                // Keep the room saved during temporary server/socket
+                // failures. Retry instead of treating it as deleted.
+                setStatus("Reconnecting…");
 
-                currentRoom = "";
-
-                localStorage.removeItem(
-                    "chat_current_room"
-                );
+                if (currentRoom === roomCode) {
+                    clearTimeout(window.chat17RejoinRetry);
+                    window.chat17RejoinRetry = setTimeout(() => {
+                        rejoinRoom(roomCode);
+                    }, 2500);
+                }
 
                 return;
 
             }
+
+            clearTimeout(window.chat17RejoinRetry);
 
 
             saveRoom({
