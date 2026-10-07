@@ -95,14 +95,11 @@ Typing activity is communicated in real time, allowing users to know when anothe
 ## 🌐 Live Demo
 
 <p align="center">
-
-<a href="https://chat17-app.vercel.app/">
-
-<strong>🚀 Open Chat17</strong>
-
-</a>
-
+  <a href="https://chat17-app.vercel.app/" target="_blank">
+    <strong>🚀 Open Chat17</strong>
+  </a>
 </p>
+
 
 ## 👨‍💻 Author
 
