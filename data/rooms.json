@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-09-21T10:26:57.729Z",
+  "savedAt": "2026-09-22T09:21:33.711Z",
   "rooms": [
     {
       "code": "RVNS9D",
@@ -9,6 +9,55 @@
       "messages": [],
       "namesByUser": {},
       "createdAt": 1789986417578
+    },
+    {
+      "code": "RD9VYX",
+      "name": "Room RD9VYX",
+      "owner": "Subash",
+      "messages": [
+        {
+          "id": "1790068699087-mrsg0vu",
+          "username": "Subash",
+          "message": "Hii",
+          "senderId": "fUgtofw1hANCVmuUAAAH",
+          "senderUsername": "Subash",
+          "roomCode": "RD9VYX",
+          "time": "2026-09-22T09:18:19.087Z",
+          "replyTo": null,
+          "seenBy": [
+            "Harishkumar"
+          ]
+        },
+        {
+          "id": "call-1790068704323-t0foccb8-1790068715826",
+          "type": "call-history",
+          "callId": "1790068704323-t0foccb8",
+          "roomCode": "RD9VYX",
+          "username": "Subash",
+          "senderUsername": "Subash",
+          "message": "Audio call",
+          "time": "2026-09-22T09:18:35.826Z",
+          "status": "answered",
+          "duration": 5,
+          "seenBy": [
+            "Harishkumar"
+          ]
+        },
+        {
+          "id": "call-1790068723205-8e7lipbu-1790068893529",
+          "type": "call-history",
+          "callId": "1790068723205-8e7lipbu",
+          "roomCode": "RD9VYX",
+          "username": "Harishkumar",
+          "senderUsername": "Harishkumar",
+          "message": "Audio call",
+          "time": "2026-09-22T09:21:33.532Z",
+          "status": "answered",
+          "duration": 168
+        }
+      ],
+      "namesByUser": {},
+      "createdAt": 1790068691656
     }
   ]
 }

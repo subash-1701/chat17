@@ -252,10 +252,32 @@ function showIncomingCall(data) {
     playIncomingRingtone();
 }
 
+function setBrowserCallAudioSession(speakerOn) {
+    // On supported mobile browsers, Audio Session API lets the OS treat the
+    // page as a real-time two-way call. This is the important part for
+    // Android/Chrome devices where the earpiece is not exposed to setSinkId().
+    // Phone mode = play-and-record (receiver/communications route).
+    // Speaker mode = playback (normal loudspeaker route).
+    try {
+        if (navigator.audioSession && "type" in navigator.audioSession) {
+            navigator.audioSession.type = speakerOn ? "playback" : "play-and-record";
+            return true;
+        }
+    } catch (e) {
+        console.warn("Audio Session routing unavailable:", e);
+    }
+    return false;
+}
+
 async function getMicrophoneStream() {
     if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("Microphone access is not supported by this browser.");
     }
+
+    // Request the communication audio session BEFORE the microphone is opened.
+    // This gives supported mobile browsers the best chance to select the
+    // phone/receiver route instead of the loudspeaker.
+    setBrowserCallAudioSession(false);
 
     return navigator.mediaDevices.getUserMedia({
         audio: {
@@ -1172,8 +1194,10 @@ if (muteCallBtn) {
 }
 
 async function getPhoneCallOutputDevice() {
-    // Browsers differ in how much audio-routing information they expose.
-    // Prefer a communication/earpiece output when one is available.
+    // Prefer a real phone/communication/earpiece output when the browser
+    // exposes one. On Android Chrome the earpiece is often not exposed as an
+    // audiooutput device; in that case we deliberately do NOT force "default"
+    // because "default" is commonly the loudspeaker.
     if (!navigator.mediaDevices?.enumerateDevices) return null;
 
     try {
@@ -1181,7 +1205,7 @@ async function getPhoneCallOutputDevice() {
         const outputs = devices.filter(device => device.kind === "audiooutput");
         const phone = outputs.find(device => {
             const text = `${device.label || ""} ${device.deviceId || ""}`.toLowerCase();
-            return /earpiece|receiver|communications|communication|telephony|phone/.test(text);
+            return /earpiece|receiver|communications|communication|telephony|phone|handset/.test(text);
         });
         return phone?.deviceId || null;
     } catch (_) {
@@ -1195,29 +1219,48 @@ async function setCallAudioOutput(speakerOn) {
 
     isCallSpeakerOn = !!speakerOn;
     audio.volume = 1;
+    audio.autoplay = true;
+    audio.playsInline = true;
 
-    if (typeof audio.setSinkId === "function") {
-        try {
-            if (isCallSpeakerOn) {
-                // "default" is the normal media speaker output on browsers
-                // that implement selectable audio outputs.
+    // First use the mobile browser's call audio session when available.
+    // This is what can actually select the receiver/earpiece on supported
+    // Android Chrome builds; setSinkId() cannot address an earpiece that
+    // Chrome does not expose as an audiooutput device.
+    const sessionHandled = setBrowserCallAudioSession(isCallSpeakerOn);
+
+    try {
+        if (isCallSpeakerOn) {
+            // Loudspeaker: only switch to the normal/default output after the
+            // user explicitly presses Speaker.
+            if (typeof audio.setSinkId === "function") {
                 callOutputDeviceId = "default";
                 await audio.setSinkId("default");
-            } else {
-                // Try to route back to the phone receiver/communications
-                // device. If the browser does not expose it, WebRTC keeps
-                // using its native communication route.
-                const phoneDeviceId = await getPhoneCallOutputDevice();
-                if (phoneDeviceId) {
-                    callOutputDeviceId = phoneDeviceId;
-                    await audio.setSinkId(phoneDeviceId);
-                } else {
+            }
+        } else {
+            // Phone mode: never force the "default" sink because on many
+            // Android devices that is the loudspeaker. Prefer an exposed
+            // earpiece/communications sink; otherwise leave routing to the
+            // browser's call audio session.
+            const phoneDeviceId = await getPhoneCallOutputDevice();
+
+            if (typeof audio.setSinkId === "function" && phoneDeviceId) {
+                callOutputDeviceId = phoneDeviceId;
+                await audio.setSinkId(phoneDeviceId);
+            } else if (!sessionHandled && typeof audio.setSinkId === "function") {
+                try {
+                    await audio.setSinkId("communications");
+                    callOutputDeviceId = "communications";
+                } catch (_) {
                     callOutputDeviceId = null;
                 }
+            } else {
+                callOutputDeviceId = null;
             }
-        } catch (e) {
-            console.warn("Audio output routing unavailable:", e);
         }
+
+        await audio.play().catch(() => {});
+    } catch (e) {
+        console.warn("Audio output routing unavailable; keeping native call route:", e);
     }
 
     speakerCallBtn?.classList.toggle("active", isCallSpeakerOn);
