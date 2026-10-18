@@ -1,5 +1,12 @@
 # Chat17
 
+
+![Real-Time Chat](https://img.shields.io/badge/Chat-Real--Time-success)
+![Audio Calling](https://img.shields.io/badge/Calls-Audio-blue)
+![No Login](https://img.shields.io/badge/Login-Not%20Required-orange)
+![Socket.IO](https://img.shields.io/badge/Realtime-Socket.IO-black)
+![QR Room Join](https://img.shields.io/badge/Rooms-QR%20Join-purple)
+
 ### Real-Time Chat Application
 
 Chat17 is a modern real-time web chat application designed for simple, fast, and seamless communication between users.
